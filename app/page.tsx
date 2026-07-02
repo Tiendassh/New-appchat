@@ -304,6 +304,26 @@ export default function AnonymousChatApp() {
       console.warn('UI Audio synthesis blocked:', err);
     }
   };
+
+  // Direct access to specific room or debate from landing/cover page
+  const handleDirectRoomAccess = (roomId: string) => {
+    // Set the target room or debate
+    setCurrentRoom(roomId);
+
+    // Auto-fill random name if empty or default spectator name
+    let activeName = name.trim();
+    if (!activeName || activeName === 'Espectador') {
+      const generated = getRandomName();
+      setName(generated);
+    }
+
+    // Ensure age confirmation is checked
+    setAgeConfirmed(true);
+
+    // Instantly enter the chat!
+    setHasEntered(true);
+    playInteractionMode('click');
+  };
   
   // WebRTC & Call States
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -1013,15 +1033,47 @@ export default function AnonymousChatApp() {
                 </div>
               </div>
 
-              {/* Guidelines Box */}
-              <div className="p-4 bg-slate-950/40 border border-slate-850 rounded-2xl text-[11px] space-y-1.5 text-slate-400 leading-relaxed mt-4">
-                <div className="flex items-center gap-1.5 font-bold text-rose-400/95 mb-0.5 uppercase tracking-wider">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>Espacio Privado Anónimo:</span>
+              {/* Portal Info Deck */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                <div className="p-3 bg-slate-950/35 border border-slate-850 rounded-xl space-y-1 text-left">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-400">
+                    <Compass className="w-3.5 h-3.5" />
+                    <span>⚡ Acceso a Salas</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-relaxed">
+                    Ingresa instantáneamente a canales temáticos (Lobby, Confesiones o Código). Presiona &apos;Entrar&apos; en cualquier sala del panel derecho.
+                  </p>
                 </div>
-                <p>• Los mensajes no se guardan en ninguna base de datos ni historial.</p>
-                <p>• Tu sesión es efímera: al recargar, tu historial desaparece para siempre.</p>
-                <p>• Conexión directa P2P (Peer-to-Peer) segura para transmisiones de voz y video.</p>
+
+                <div className="p-3 bg-slate-950/35 border border-slate-850 rounded-xl space-y-1 text-left">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-rose-400">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>🔥 Debates Activos</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-relaxed">
+                    Lee las discusiones más votadas de la comunidad en la portada. Opina, vota y crea debates una vez que hayas ingresado.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-950/35 border border-slate-850 rounded-xl space-y-1 text-left">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-pink-400">
+                    <Users className="w-3.5 h-3.5" />
+                    <span>🖼️ Identidades y Fotos</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-relaxed">
+                    Usa &apos;Fotos ID&apos; para clonar identidades pre-diseñadas (Sirena, Cazador, Gato) de inmediato y comenzar a chatear con un solo clic.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-950/35 border border-slate-850 rounded-xl space-y-1 text-left">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>🔒 Privacidad Total</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-relaxed">
+                    Las conexiones de voz y video son directas (P2P). Tu alias es temporal y el historial se destruye al cerrar la pestaña.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -1238,48 +1290,61 @@ export default function AnonymousChatApp() {
                         rooms.map((r) => (
                           <div 
                             key={r.id} 
-                            className="p-2.5 rounded-xl border border-slate-900 bg-slate-950/40 hover:bg-slate-950/80 transition-all flex items-center justify-between"
+                            className="p-2.5 rounded-xl border border-slate-900 bg-slate-950/40 hover:bg-slate-950/80 transition-all flex items-center justify-between group"
                           >
-                            <div className="flex items-center gap-2">
-                              <div className="p-1 rounded-lg bg-indigo-500/10 text-indigo-400">
+                            <div className="flex items-center gap-2 max-w-[65%]">
+                              <div className="p-1 rounded-lg bg-indigo-500/10 text-indigo-400 shrink-0">
                                 {getRoomIcon(r.icon)}
                               </div>
-                              <div>
+                              <div className="truncate">
                                 <h4 className="text-xs font-bold text-slate-300">{r.name}</h4>
-                                <p className="text-[9px] text-slate-500 truncate max-w-[150px]">{r.description}</p>
+                                <p className="text-[9px] text-slate-500 truncate">{r.description}</p>
                               </div>
                             </div>
-                            <span className="text-[9px] font-mono bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-md font-bold">
-                              {r.activeUsers} activos
-                            </span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-[8px] font-mono bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-md font-bold">
+                                {r.activeUsers} act.
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleDirectRoomAccess(r.id)}
+                                className="px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-widest bg-gradient-to-r from-rose-500 to-indigo-600 hover:from-rose-600 hover:to-indigo-700 text-white rounded-lg transition-all shadow-md shadow-indigo-500/10 hover:scale-105 active:scale-95 cursor-pointer"
+                              >
+                                Entrar
+                              </button>
+                            </div>
                           </div>
                         ))
                       ) : (
                         <div className="space-y-2">
-                          <div className="p-2.5 rounded-xl border border-slate-900 bg-slate-950/40 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="p-1 rounded-lg bg-indigo-500/10 text-indigo-400">
-                                <MessageSquare className="w-4 h-4" />
+                          {STATIC_ROOMS.map((r) => (
+                            <div 
+                              key={r.id}
+                              className="p-2.5 rounded-xl border border-slate-900 bg-slate-950/40 hover:bg-slate-950/85 hover:border-slate-800 transition-all flex items-center justify-between group"
+                            >
+                              <div className="flex items-center gap-2 max-w-[65%]">
+                                <div className="p-1 rounded-lg bg-indigo-500/10 text-indigo-400 shrink-0">
+                                  {getRoomIcon(r.icon)}
+                                </div>
+                                <div className="truncate flex-1">
+                                  <h4 className="text-xs font-bold text-slate-300">{r.name}</h4>
+                                  <p className="text-[9px] text-slate-500 truncate">{r.description}</p>
+                                </div>
                               </div>
-                              <div>
-                                <h4 className="text-xs font-bold text-slate-300">Sala General</h4>
-                                <p className="text-[9px] text-slate-500">Espacio de charla principal</p>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-[8px] font-mono bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-md font-bold">
+                                  0 act.
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDirectRoomAccess(r.id)}
+                                  className="px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-widest bg-gradient-to-r from-rose-500 to-indigo-600 hover:from-rose-600 hover:to-indigo-700 text-white rounded-lg transition-all shadow-md shadow-indigo-500/10 hover:scale-105 active:scale-95 cursor-pointer"
+                                >
+                                  Entrar
+                                </button>
                               </div>
                             </div>
-                            <span className="text-[9px] font-mono bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-md font-bold">0 activos</span>
-                          </div>
-                          <div className="p-2.5 rounded-xl border border-slate-900 bg-slate-950/40 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="p-1 rounded-lg bg-rose-500/10 text-rose-400">
-                                <Sparkles className="w-4 h-4" />
-                              </div>
-                              <div>
-                                <h4 className="text-xs font-bold text-slate-300">Citas Rápidas 💖</h4>
-                                <p className="text-[9px] text-slate-500">Citas anónimas aleatorias</p>
-                              </div>
-                            </div>
-                            <span className="text-[9px] font-mono bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded-md font-bold">0 activos</span>
-                          </div>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -1329,8 +1394,17 @@ export default function AnonymousChatApp() {
                             </div>
                             <h4 className="text-xs font-bold text-slate-200 line-clamp-1">{d.title}</h4>
                             <p className="text-[10px] text-slate-400 line-clamp-2 leading-snug">{d.description}</p>
-                            <div className="text-[8px] text-slate-500 font-mono text-right">
-                              Por: <span style={{ color: d.creatorColor || '#cbd5e1' }}>{d.creatorName}</span>
+                            <div className="flex items-center justify-between pt-1.5 border-t border-slate-900/30">
+                              <span className="text-[8px] text-slate-500 font-mono">
+                                Por: <span style={{ color: d.creatorColor || '#cbd5e1' }}>{d.creatorName}</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleDirectRoomAccess(d.id)}
+                                className="px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-wider bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 hover:border-indigo-500/50 rounded-md transition-all hover:scale-105 cursor-pointer"
+                              >
+                                Debatir 💬
+                              </button>
                             </div>
                           </div>
                         ))
@@ -1348,7 +1422,16 @@ export default function AnonymousChatApp() {
                             </div>
                             <h4 className="text-xs font-bold text-slate-200">¿Es posible enamorarse en el anonimato?</h4>
                             <p className="text-[10px] text-slate-400 leading-snug">Debatamos si conocer a alguien únicamente por voz y texto sin juzgar su apariencia genera conexiones más profundas.</p>
-                            <div className="text-[8px] text-slate-500 font-mono text-right">Por: <span className="text-indigo-400">Gato_Curioso</span></div>
+                            <div className="flex items-center justify-between pt-1.5 border-t border-slate-900/30">
+                              <span className="text-[8px] text-slate-500 font-mono">Por: <span className="text-indigo-400">Gato_Curioso</span></span>
+                              <button
+                                type="button"
+                                onClick={() => handleDirectRoomAccess('d3')}
+                                className="px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-wider bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 hover:border-indigo-500/50 rounded-md transition-all hover:scale-105 cursor-pointer"
+                              >
+                                Debatir 💬
+                              </button>
+                            </div>
                           </div>
 
                           <div className="p-3 rounded-xl border border-slate-900 bg-slate-950/40 space-y-1.5">
@@ -1362,7 +1445,16 @@ export default function AnonymousChatApp() {
                             </div>
                             <h4 className="text-xs font-bold text-slate-200">¿Las relaciones líquidas dominan las redes sociales?</h4>
                             <p className="text-[10px] text-slate-400 leading-snug">¿Cómo afecta la efimeridad de las salas de voz virtuales a nuestro sentido de amistad y empatía actual?</p>
-                            <div className="text-[8px] text-slate-500 font-mono text-right">Por: <span className="text-rose-400">Loba_Estelar</span></div>
+                            <div className="flex items-center justify-between pt-1.5 border-t border-slate-900/30">
+                              <span className="text-[8px] text-slate-500 font-mono">Por: <span className="text-rose-400">Loba_Estelar</span></span>
+                              <button
+                                type="button"
+                                onClick={() => handleDirectRoomAccess('d2')}
+                                className="px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-wider bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 hover:border-indigo-500/50 rounded-md transition-all hover:scale-105 cursor-pointer"
+                              >
+                                Debatir 💬
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )}
