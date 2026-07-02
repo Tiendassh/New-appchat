@@ -25,16 +25,9 @@ import {
   Camera,
   AlertTriangle,
   Sparkles,
-  ChevronRight,
-  Link,
-  Image as ImageIcon,
-  Heart,
-  Plus,
-  ExternalLink,
-  Share2,
-  Filter
+  ChevronRight
 } from 'lucide-react';
-import { User, ChatMessage, SignalingQueueItem, RoomInfo, MediaContribution } from '@/lib/types';
+import { User, ChatMessage, SignalingQueueItem, RoomInfo, DebateTopic } from '@/lib/types';
 import { STATIC_ROOMS } from '@/lib/chatStore';
 
 // Generate a client-side temporary user ID
@@ -93,7 +86,20 @@ export default function AnonymousChatApp() {
   // Text Chat States
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'rooms' | 'users'>('rooms');
+  const [activeTab, setActiveTab] = useState<'rooms' | 'debates' | 'users'>('rooms');
+
+  // Debate Forums States
+  const [debates, setDebates] = useState<DebateTopic[]>([]);
+  const [newDebateTitle, setNewDebateTitle] = useState<string>('');
+  const [newDebateDesc, setNewDebateDesc] = useState<string>('');
+  const [newDebateCat, setNewDebateCat] = useState<string>('Tecnología');
+  const [showDebateForm, setShowDebateForm] = useState<boolean>(false);
+
+  // Audio Recording States
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const [recordingSeconds, setRecordingSeconds] = useState<number>(0);
+  const [recordingInterval, setRecordingInterval] = useState<any>(null);
   
   // WebRTC & Call States
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -113,31 +119,12 @@ export default function AnonymousChatApp() {
   const [callMessages, setCallMessages] = useState<{ sender: string; color: string; text: string }[]>([]);
   const [callMessageInput, setCallMessageInput] = useState<string>('');
 
-  // Media Contributions States
-  const [mediaContributions, setMediaContributions] = useState<MediaContribution[]>([]);
-  const [showMediaPanel, setShowMediaPanel] = useState<boolean>(true);
-  const [mediaFilter, setMediaFilter] = useState<'all' | 'image' | 'video' | 'audio' | 'link'>('all');
-  const [showAddForm, setShowAddForm] = useState<boolean>(false);
-  const [newMediaTitle, setNewMediaTitle] = useState<string>('');
-  const [newMediaUrl, setNewMediaUrl] = useState<string>('');
-  const [newMediaType, setNewMediaType] = useState<'image' | 'video' | 'audio' | 'link'>('link');
-  const [newMediaCategory, setNewMediaCategory] = useState<string>('General');
-
   // Refs for tracking connections & video rendering
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const outgoingSignalsRef = useRef<any[]>([]);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  
-  // Media pending action refs
-  const pendingMediaRef = useRef<{
-    title: string;
-    url: string;
-    type: 'image' | 'video' | 'audio' | 'link';
-    category?: string;
-  } | null>(null);
-  const pendingLikeMediaIdRef = useRef<string | null>(null);
 
   // --- WEBRTC CORE FUNCTIONS (Declared first to avoid early access errors) ---
 
@@ -367,10 +354,6 @@ export default function AnonymousChatApp() {
     setIsSearchingRandom(false);
   };
 
-  const handleLikeMedia = (mediaId: string) => {
-    pendingLikeMediaIdRef.current = mediaId;
-  };
-
   // --- MAIN POLL LOOP FOR HEARTBEAT & SIGNALING ---
 
   useEffect(() => {
@@ -388,12 +371,6 @@ export default function AnonymousChatApp() {
       const msgToSend = pendingMessage;
       pendingMessage = null; // Clear trigger
 
-      const mediaToSubmit = pendingMediaRef.current;
-      pendingMediaRef.current = null;
-
-      const likeMediaId = pendingLikeMediaIdRef.current;
-      pendingLikeMediaIdRef.current = null;
-
       try {
         const response = await fetch('/api/chat', {
           method: 'POST',
@@ -407,9 +384,7 @@ export default function AnonymousChatApp() {
             currentRoom: isSearchingRandom ? null : currentRoom,
             isSearchingRandom,
             sendMessage: msgToSend || undefined,
-            outgoingSignals: signalsToSend,
-            addMediaContribution: mediaToSubmit || undefined,
-            likeMediaId: likeMediaId || undefined
+            outgoingSignals: signalsToSend
           })
         });
 
@@ -431,8 +406,8 @@ export default function AnonymousChatApp() {
         if (data.messages && !isSearchingRandom) {
           setMessages(data.messages);
         }
-        if (data.mediaContributions) {
-          setMediaContributions(data.mediaContributions);
+        if (data.debates) {
+          setDebates(data.debates);
         }
 
         // Process incoming signaling array
@@ -583,6 +558,134 @@ export default function AnonymousChatApp() {
       if (data.messages) setMessages(data.messages);
     })
     .catch(err => console.error('Immediate dispatch failed', err));
+  };
+
+  // Dispatch recorded voice note as Base64 to room
+  const handleSendAudioMessage = (base64Audio: string) => {
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        currentRoom,
+        sendAudioMessage: base64Audio,
+        isSearchingRandom: false
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.messages) setMessages(data.messages);
+    })
+    .catch(err => console.error('Audio note dispatch failed', err));
+  };
+
+  // Create a new Debate Topic
+  const handleCreateDebate = (title: string, description: string, category: string) => {
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        currentRoom,
+        createDebate: { title, description, category },
+        isSearchingRandom: false
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.debates) setDebates(data.debates);
+      // Let's find the new debate we just created to enter it
+      const createdDebate = data.debates?.find((d: any) => d.creatorId === userId);
+      if (createdDebate) {
+        joinRoom(createdDebate.id);
+      }
+    })
+    .catch(err => console.error('Create debate failed', err));
+  };
+
+  // Upvote or retract vote on a debate topic
+  const handleVoteDebate = (debateId: string) => {
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        currentRoom,
+        voteDebateId: debateId,
+        isSearchingRandom: false
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.debates) setDebates(data.debates);
+    })
+    .catch(err => console.error('Vote action failed', err));
+  };
+
+  // Browser MediaRecorder voice capture start
+  const startRecording = async () => {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('UserMedia API not supported');
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        stream.getTracks().forEach(track => track.stop());
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          const base64Data = reader.result as string;
+          if (base64Data && base64Data.startsWith('data:audio/')) {
+            handleSendAudioMessage(base64Data);
+          }
+        };
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setRecordingSeconds(0);
+
+      const interval = setInterval(() => {
+        setRecordingSeconds(prev => prev + 1);
+      }, 1000);
+      setRecordingInterval(interval);
+
+    } catch (err: any) {
+      console.error("Recording error:", err);
+      setCallRejectedNotification("Permiso de micrófono denegado para grabar audio.");
+      setTimeout(() => setCallRejectedNotification(null), 4000);
+    }
+  };
+
+  // Stop current voice recording and decide whether to send or discard
+  const stopRecording = (cancel = false) => {
+    if (recordingInterval) {
+      clearInterval(recordingInterval);
+      setRecordingInterval(null);
+    }
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      if (cancel) {
+        recorder.onstop = () => {
+          // Discard tracks on close
+          recorder.stream.getTracks().forEach(track => track.stop());
+        };
+      }
+      recorder.stop();
+    }
+    setIsRecording(false);
+    setRecordingSeconds(0);
   };
 
   // Direct room-to-room navigation
@@ -960,8 +1063,8 @@ export default function AnonymousChatApp() {
             </button>
           </div>
 
-          {/* Tab Selector (Rooms vs Active People in Room) */}
-          <div className="flex border-b border-slate-900 px-2 text-xs">
+          {/* Tab Selector (Rooms vs Debates vs Active People in Room) */}
+          <div className="flex border-b border-slate-900 px-1 text-[11px]">
             <button
               onClick={() => setActiveTab('rooms')}
               className={`flex-1 py-3 text-center font-bold border-b-2 cursor-pointer transition-colors ${
@@ -970,7 +1073,17 @@ export default function AnonymousChatApp() {
                   : 'border-transparent text-slate-500 hover:text-slate-300'
               }`}
             >
-              Salas Temáticas
+              Salas
+            </button>
+            <button
+              onClick={() => setActiveTab('debates')}
+              className={`flex-1 py-3 text-center font-bold border-b-2 cursor-pointer transition-colors ${
+                activeTab === 'debates' 
+                  ? 'border-indigo-500 text-indigo-400' 
+                  : 'border-transparent text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              Debates
             </button>
             <button
               onClick={() => setActiveTab('users')}
@@ -980,9 +1093,9 @@ export default function AnonymousChatApp() {
                   : 'border-transparent text-slate-500 hover:text-slate-300'
               }`}
             >
-              Gente en Sala
+              Gente
               {roomUsers.length > 0 && (
-                <span className="absolute top-1/2 right-3 -translate-y-1/2 bg-indigo-500/10 text-indigo-400 text-[10px] px-1.5 py-0.5 rounded-full">
+                <span className="absolute top-1.5 right-1.5 bg-indigo-500/10 text-indigo-400 text-[8px] px-1.5 py-0.5 rounded-full">
                   {roomUsers.length}
                 </span>
               )}
@@ -1024,11 +1137,147 @@ export default function AnonymousChatApp() {
                   </button>
                 ))}
               </div>
+            ) : activeTab === 'debates' ? (
+              // Tab B: DEBATE FORUMS LISTING
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setShowDebateForm(!showDebateForm)}
+                  className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-rose-600 hover:scale-[1.01] active:scale-[0.99] text-white font-bold rounded-xl text-[11px] cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-500/5 transition-all"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  {showDebateForm ? 'Cancelar Propuesta' : 'Iniciar Nuevo Debate'}
+                </button>
+
+                {showDebateForm && (
+                  <div className="p-3 bg-slate-900/50 border border-slate-800/80 rounded-xl space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Tema de debate</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: ¿Pizza con piña: sí o no?"
+                        maxLength={100}
+                        value={newDebateTitle}
+                        onChange={(e) => setNewDebateTitle(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Argumento o Pregunta inicial</label>
+                      <textarea
+                        placeholder="Plantea tu pregunta o argumento..."
+                        maxLength={300}
+                        rows={3}
+                        value={newDebateDesc}
+                        onChange={(e) => setNewDebateDesc(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 resize-none"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Categoría</label>
+                      <select
+                        value={newDebateCat}
+                        onChange={(e) => setNewDebateCat(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-300 focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="Tecnología">Tecnología</option>
+                        <option value="Filosofía">Filosofía</option>
+                        <option value="Cotidiano">Cotidiano</option>
+                        <option value="Fútbol">Fútbol</option>
+                        <option value="General">General</option>
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!newDebateTitle.trim() || !newDebateDesc.trim()) return;
+                        handleCreateDebate(newDebateTitle.trim(), newDebateDesc.trim(), newDebateCat);
+                        setNewDebateTitle('');
+                        setNewDebateDesc('');
+                        setShowDebateForm(false);
+                      }}
+                      className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-all cursor-pointer"
+                    >
+                      Publicar Debate 🔥
+                    </button>
+                  </div>
+                )}
+
+                <div className="space-y-2.5">
+                  {debates.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500 text-xs">
+                      No hay debates activos aún.
+                    </div>
+                  ) : (
+                    debates.map((debate) => {
+                      const hasVoted = debate.votedBy?.includes(userId);
+                      return (
+                        <div
+                          key={debate.id}
+                          className={`p-3 bg-slate-900/10 border rounded-xl space-y-2 transition-all hover:border-slate-800 ${
+                            currentRoom === debate.id ? 'bg-indigo-500/5 border-indigo-500/20' : 'border-slate-900/60'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-1.5 py-0.5 rounded-md">
+                              {debate.category}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleVoteDebate(debate.id)}
+                              className={`flex items-center gap-1 py-0.5 px-1.5 rounded-full text-[9px] font-bold border cursor-pointer transition-all ${
+                                hasVoted
+                                  ? 'bg-rose-500/20 border-rose-500/30 text-rose-400'
+                                  : 'bg-slate-900/40 border-slate-800 text-slate-500 hover:text-slate-300'
+                              }`}
+                            >
+                              <span>🔥</span> {debate.votes}
+                            </button>
+                          </div>
+                          
+                          <div className="space-y-0.5">
+                            <h4 className="font-extrabold text-[11px] text-slate-200 leading-snug">
+                              {debate.title}
+                            </h4>
+                            <p className="text-[10px] text-slate-400 leading-normal line-clamp-2">
+                              {debate.description}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1.5 border-t border-slate-900/40">
+                            <div className="flex items-center gap-1 overflow-hidden max-w-[55%]">
+                              <span className="text-[8px] text-slate-500 shrink-0">Por</span>
+                              <span
+                                className="text-[9px] font-extrabold truncate"
+                                style={{ color: debate.creatorColor }}
+                              >
+                                {debate.creatorName}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => joinRoom(debate.id)}
+                              className={`py-1 px-2.5 rounded-lg text-[9px] font-extrabold flex items-center gap-1 cursor-pointer transition-all ${
+                                currentRoom === debate.id
+                                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/10'
+                                  : 'bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/20'
+                              }`}
+                            >
+                              {currentRoom === debate.id ? 'Debatiendo' : 'Debatír'}
+                              <span>💬</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             ) : (
-              // Tab B: USERS ONLINE IN CURRENT ROOM
+              // Tab C: USERS ONLINE IN CURRENT ROOM WITH DIRECT CALL BUTTONS
               <div className="space-y-1.5">
-                <div className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider mb-2 px-1">
-                  Click para llamar por voz/video
+                <div className="text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-2 px-1">
+                  Usuarios activos en esta sala
                 </div>
                 {roomUsers.length <= 1 ? (
                   <div className="text-center py-8 text-slate-500 text-xs">
@@ -1038,27 +1287,37 @@ export default function AnonymousChatApp() {
                   roomUsers.map((u) => {
                     if (u.id === userId) return null;
                     return (
-                      <button
+                      <div
                         key={u.id}
-                        onClick={() => u.id && u.name && requestDirectCall(u.id, u.name)}
-                        className="w-full text-left p-2.5 bg-slate-900/20 border border-slate-900 hover:border-indigo-500/30 hover:bg-indigo-500/5 rounded-xl transition-all flex items-center justify-between gap-3 group cursor-pointer"
+                        className="p-3 bg-slate-900/35 border border-slate-900 rounded-xl flex flex-col gap-2 transition-all hover:bg-slate-900/50 hover:border-slate-800/80"
                       >
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <div 
-                            className="w-2 h-2 rounded-full ring-2 ring-offset-1 ring-offset-slate-950" 
-                            style={{ backgroundColor: u.color, '--tw-ring-color': u.color } as React.CSSProperties} 
-                          />
-                          <span className="text-xs font-bold text-slate-300 truncate group-hover:text-indigo-400">
-                            {u.name}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[8px] text-slate-500 bg-slate-900 border border-slate-800 px-1 py-0.5 rounded">
+                        <div className="flex items-center justify-between gap-2 overflow-hidden">
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <div 
+                              className="w-2 h-2 rounded-full ring-2 ring-offset-1 ring-offset-slate-950 shrink-0" 
+                              style={{ backgroundColor: u.color, '--tw-ring-color': u.color } as React.CSSProperties} 
+                            />
+                            <span className="text-xs font-bold text-slate-300 truncate">
+                              {u.name}
+                            </span>
+                          </div>
+                          <span className="text-[8px] text-slate-500 bg-slate-950 border border-slate-900 px-1 py-0.5 rounded shrink-0">
                             {getGenderLabel(u.gender)}
                           </span>
-                          <Video className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-400 transition-colors shrink-0 ml-1" />
                         </div>
-                      </button>
+                        
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => u.id && u.name && requestDirectCall(u.id, u.name)}
+                            className="flex-1 py-1.5 px-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-lg text-[10px] font-extrabold flex items-center justify-center gap-1 cursor-pointer transition-all"
+                            title={`Llamar por voz/video a ${u.name}`}
+                          >
+                            <Phone className="w-3 h-3 text-emerald-400 shrink-0" />
+                            <span>Llamar</span>
+                          </button>
+                        </div>
+                      </div>
                     );
                   })
                 )}
@@ -1285,431 +1544,229 @@ export default function AnonymousChatApp() {
 
             ) : (
 
-              // STATE 3: GROUP ROOM TEXT CONVERSATION FEED & MULTIMEDIA PANEL
+              // STATE 3: GROUP ROOM TEXT CONVERSATION FEED
               <motion.div
                 key="room-chat"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden"
+                className="flex-1 flex flex-col h-full overflow-hidden"
               >
-                {/* Chat Column */}
-                <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
-                  {/* Active Room Title Banner */}
-                  {currentRoom && (
+                {/* Active Room Title Banner */}
+                {currentRoom && (() => {
+                  const staticRoom = STATIC_ROOMS.find(r => r.id === currentRoom);
+                  const isDebateRoom = currentRoom.startsWith('debate_');
+                  const debateObj = isDebateRoom ? debates.find(d => d.id === currentRoom) : null;
+
+                  const roomName = staticRoom ? staticRoom.name : (debateObj ? `Foro: ${debateObj.title}` : 'Foro de Debate');
+                  const roomDesc = staticRoom ? staticRoom.description : (debateObj ? `Iniciado por ${debateObj.creatorName} • ${debateObj.description}` : 'Intercambia opiniones de forma 100% libre y anónima.');
+                  const roomIcon = staticRoom ? staticRoom.icon : 'MessageSquare';
+
+                  return (
                     <div className="p-4 border-b border-slate-900 bg-slate-950/60 backdrop-blur flex items-center justify-between shrink-0">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-                          {STATIC_ROOMS.find(r => r.id === currentRoom)?.icon && getRoomIcon(STATIC_ROOMS.find(r => r.id === currentRoom)!.icon)}
+                      <div className="flex items-center gap-3 overflow-hidden max-w-[70%]">
+                        <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 shrink-0">
+                          {getRoomIcon(roomIcon)}
                         </div>
-                        <div>
-                          <h2 className="text-sm font-extrabold text-slate-100">
-                            {STATIC_ROOMS.find(r => r.id === currentRoom)?.name}
+                        <div className="overflow-hidden">
+                          <h2 className="text-sm font-extrabold text-slate-100 truncate">
+                            {roomName}
                           </h2>
                           <p className="text-[10px] text-slate-400 line-clamp-1">
-                            {STATIC_ROOMS.find(r => r.id === currentRoom)?.description}
+                            {roomDesc}
                           </p>
                         </div>
                       </div>
 
-                      {/* Controls Area (Toggle Media and Match button) */}
+                      {/* Small mobile rooms listing icon toggle to switch channels if sidebar is missing */}
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => setShowMediaPanel(!showMediaPanel)}
-                          className={`text-[10px] sm:text-xs font-bold py-1.5 px-3 rounded-xl border flex items-center gap-1.5 transition-all cursor-pointer ${
-                            showMediaPanel 
-                              ? 'bg-rose-500/15 border-rose-500/30 text-rose-400' 
-                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                          type="button"
+                          onClick={startRandomMatch}
+                          className="bg-gradient-to-r from-rose-500 to-indigo-600 text-white font-bold text-[10px] uppercase py-1.5 px-3.5 rounded-full hover:scale-105 transition-all"
+                        >
+                          Match 1-a-1
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Messages Scrolling Grid */}
+                <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+                  {/* No messages indicator */}
+                  {messages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center space-y-3 py-12">
+                      <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500">
+                        <MessageSquare className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-400">El historial está vacío</p>
+                        <p className="text-[10px] text-slate-600 max-w-xs mt-1">
+                          Sé el primero en saludar de forma anónima. Recuerda que al salir o recargar la página, todo se borra.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    messages.map((msg) => {
+                      const isMe = msg.senderId === userId;
+                      return (
+                        <div
+                          key={msg.id}
+                          className={`flex items-start gap-2.5 max-w-[85%] md:max-w-[70%] ${
+                            isMe ? 'ml-auto flex-row-reverse' : 'mr-auto'
                           }`}
                         >
-                          <Share2 className="w-3.5 h-3.5" />
-                          <span>Media {showMediaPanel ? 'Ocultar' : 'Aportes'}</span>
-                        </button>
-
-                        <div className="md:hidden">
-                          <button
-                            onClick={startRandomMatch}
-                            className="bg-gradient-to-r from-rose-500 to-indigo-600 text-white font-bold text-[10px] uppercase py-1.5 px-3.5 rounded-full"
-                          >
-                            Match 1-a-1
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Messages Scrolling Grid */}
-                  <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-                    {/* No messages indicator */}
-                    {messages.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center text-center space-y-3 py-12">
-                        <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500">
-                          <MessageSquare className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-400">El historial está vacío</p>
-                          <p className="text-[10px] text-slate-600 max-w-xs mt-1">
-                            Sé el primero en saludar de forma anónima. Recuerda que al salir o recargar la página, todo se borra.
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      messages.map((msg) => {
-                        const isMe = msg.senderId === userId;
-                        return (
+                          {/* Colored dot representation */}
                           <div
-                            key={msg.id}
-                            className={`flex items-start gap-2.5 max-w-[85%] md:max-w-[75%] ${
-                              isMe ? 'ml-auto flex-row-reverse' : 'mr-auto'
-                            }`}
+                            className="w-7 h-7 rounded-full shrink-0 border border-slate-800/80 flex items-center justify-center text-[10px] font-bold text-slate-900 select-none shadow"
+                            style={{ backgroundColor: msg.senderColor }}
                           >
-                            {/* Colored dot representation */}
-                            <div
-                              className="w-7 h-7 rounded-full shrink-0 border border-slate-800/80 flex items-center justify-center text-[10px] font-bold text-slate-900 select-none shadow"
-                              style={{ backgroundColor: msg.senderColor }}
-                            >
-                              {msg.senderName.substring(0, 1).toUpperCase()}
+                            {msg.senderName.substring(0, 1).toUpperCase()}
+                          </div>
+
+                          <div className="space-y-1">
+                            {/* Metadata */}
+                            <div className={`flex items-center gap-2 text-[10px] ${isMe ? 'justify-end' : ''}`}>
+                              <span
+                                className="font-bold"
+                                style={{ color: isMe ? '#94a3b8' : msg.senderColor }}
+                              >
+                                {msg.senderName} {isMe && '(Tú)'}
+                              </span>
+                              <span className="text-slate-600 font-mono">
+                                {formatTime(msg.timestamp)}
+                              </span>
+                              {!isMe && (
+                                <button
+                                  type="button"
+                                  onClick={() => requestDirectCall(msg.senderId, msg.senderName)}
+                                  className="ml-2 px-1.5 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:border-emerald-500/40 text-[9px] font-bold flex items-center gap-0.5 cursor-pointer transition-all"
+                                  title={`Llamar por voz/video a ${msg.senderName}`}
+                                >
+                                  <Phone className="w-2.5 h-2.5" />
+                                  <span>Llamar</span>
+                                </button>
+                              )}
                             </div>
 
-                            <div className="space-y-1">
-                              {/* Metadata */}
-                              <div className={`flex items-center gap-2 text-[10px] ${isMe ? 'justify-end' : ''}`}>
-                                <button
-                                  onClick={() => !isMe && requestDirectCall(msg.senderId, msg.senderName)}
-                                  className="font-bold text-slate-300 hover:text-indigo-400 transition-colors cursor-pointer text-left"
-                                  style={{ color: isMe ? '#94a3b8' : msg.senderColor }}
-                                  title={isMe ? '' : `Llamar por voz/video a ${msg.senderName}`}
-                                >
-                                  {msg.senderName} {isMe ? '(Tú)' : '📞'}
-                                </button>
-                                <span className="text-slate-600 font-mono">
-                                  {formatTime(msg.timestamp)}
-                                </span>
-                              </div>
-
-                              {/* Message text body */}
-                              <div
-                                className={`p-3.5 rounded-2xl text-xs leading-relaxed break-words shadow-sm ${
-                                  isMe
-                                    ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-none border border-indigo-500/20'
-                                    : 'bg-slate-900/60 text-slate-200 border border-slate-800/80 rounded-tl-none'
-                                }`}
-                              >
-                                {msg.text}
-                              </div>
+                            {/* Message text body or voice player */}
+                            <div
+                              className={`p-3.5 rounded-2xl text-xs leading-relaxed break-words shadow-sm ${
+                                isMe
+                                  ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-none border border-indigo-500/20'
+                                  : 'bg-slate-900/60 text-slate-200 border border-slate-800/80 rounded-tl-none'
+                              }`}
+                            >
+                              {msg.audioUrl ? (
+                                <div className="space-y-1.5 min-w-[200px]">
+                                  <div className="flex items-center gap-1 opacity-80">
+                                    <span className="text-[10px] uppercase font-bold tracking-wider flex items-center gap-1">
+                                      <span>🎙️</span> Nota de voz
+                                    </span>
+                                  </div>
+                                  <audio 
+                                    src={msg.audioUrl} 
+                                    controls 
+                                    className="w-full h-8 max-w-xs focus:outline-none rounded bg-slate-950/80 border border-slate-800/60"
+                                  />
+                                </div>
+                              ) : (
+                                msg.text
+                              )}
                             </div>
                           </div>
-                        );
-                      })
-                    )}
-                    <div ref={messagesEndRef} />
-                  </div>
-
-                  {/* Mobile rooms switcher scrollable strip (only visible on mobile screens) */}
-                  <div className="md:hidden flex gap-2 overflow-x-auto px-4 py-2 border-t border-slate-900 bg-slate-950 shrink-0">
-                    {STATIC_ROOMS.map(r => (
-                      <button
-                        key={r.id}
-                        onClick={() => joinRoom(r.id)}
-                        className={`text-[10px] font-bold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 border ${
-                          currentRoom === r.id 
-                            ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400' 
-                            : 'bg-slate-900 border-transparent text-slate-400'
-                        }`}
-                      >
-                        {r.name}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Dispatch Input Box form */}
-                  <form
-                    onSubmit={handleSendMessage}
-                    className="p-4 border-t border-slate-900 bg-slate-950/80 backdrop-blur flex gap-3 shrink-0"
-                  >
-                    <input
-                      type="text"
-                      maxLength={1000}
-                      value={messageInput}
-                      onChange={(e) => setMessageInput(e.target.value)}
-                      className="flex-1 bg-slate-900/60 border border-slate-800 rounded-2xl py-3 px-4 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-xs"
-                      placeholder={`Escribe un mensaje anónimo en ${STATIC_ROOMS.find(r => r.id === currentRoom)?.name || 'esta sala'}...`}
-                    />
-                    <button
-                      type="submit"
-                      className="p-3 bg-indigo-600 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] rounded-2xl text-white font-bold transition-all shrink-0 shadow-lg shadow-indigo-500/10 cursor-pointer flex items-center justify-center aspect-square"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </form>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div ref={messagesEndRef} />
                 </div>
 
-                {/* Media Contributions Sidebar Panel */}
-                {showMediaPanel && (
-                  <div className="w-full lg:w-80 xl:w-96 border-t lg:border-t-0 lg:border-l border-slate-900 bg-slate-950 flex flex-col h-72 lg:h-full shrink-0 overflow-hidden relative">
-                    {/* Header */}
-                    <div className="p-3.5 border-b border-slate-900 flex items-center justify-between shrink-0 bg-slate-950/85">
+                {/* Mobile rooms switcher scrollable strip (only visible on mobile screens) */}
+                <div className="md:hidden flex gap-2 overflow-x-auto px-4 py-2 border-t border-slate-900 bg-slate-950 shrink-0">
+                  {STATIC_ROOMS.map(r => (
+                    <button
+                      key={r.id}
+                      onClick={() => joinRoom(r.id)}
+                      className={`text-[10px] font-bold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 border ${
+                        currentRoom === r.id 
+                          ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400' 
+                          : 'bg-slate-900 border-transparent text-slate-400'
+                      }`}
+                    >
+                      {r.name}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Dispatch Input Box form */}
+                <div className="p-4 border-t border-slate-900 bg-slate-950/80 backdrop-blur shrink-0 flex flex-col gap-2">
+                  {isRecording ? (
+                    <div className="flex items-center justify-between gap-3 bg-rose-500/10 border border-rose-500/20 rounded-2xl py-2.5 px-4 animate-pulse">
                       <div className="flex items-center gap-2">
-                        <Share2 className="w-4 h-4 text-rose-400" />
-                        <h3 className="text-xs font-extrabold tracking-wider uppercase text-slate-200">Aportes Multimedia</h3>
-                        <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full font-mono">
-                          {mediaContributions.length}
-                        </span>
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />
+                        <span className="text-rose-400 font-extrabold text-xs">Grabando nota de voz</span>
+                        <span className="text-slate-400 text-xs font-mono">[{recordingSeconds}s]</span>
                       </div>
-                      <button
-                        onClick={() => setShowAddForm(!showAddForm)}
-                        className="p-1.5 bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/20 text-indigo-400 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
-                      >
-                        {showAddForm ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-                        <span>Aportar</span>
-                      </button>
-                    </div>
-
-                    {/* Add Form Container */}
-                    <AnimatePresence>
-                      {showAddForm && (
-                        <motion.form
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            if (!newMediaTitle.trim() || !newMediaUrl.trim()) return;
-                            
-                            pendingMediaRef.current = {
-                              title: newMediaTitle.trim(),
-                              url: newMediaUrl.trim().startsWith('http') ? newMediaUrl.trim() : 'https://' + newMediaUrl.trim(),
-                              type: newMediaType,
-                              category: newMediaCategory.trim() || 'General'
-                            };
-                            
-                            setNewMediaTitle('');
-                            setNewMediaUrl('');
-                            setNewMediaType('link');
-                            setNewMediaCategory('General');
-                            setShowAddForm(false);
-                            
-                            // Visual hint
-                            setCallRejectedNotification("Aporte subido de forma anónima 🎉");
-                            setTimeout(() => setCallRejectedNotification(null), 3000);
-                          }}
-                          className="p-4 border-b border-slate-900 bg-slate-900/40 space-y-3 shrink-0 text-xs overflow-hidden"
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => stopRecording(true)}
+                          className="p-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 rounded-xl text-rose-400 hover:text-rose-300 font-bold text-xs cursor-pointer transition-all"
+                          title="Descartar grabación"
                         >
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Título del aporte</label>
-                            <input
-                              type="text"
-                              required
-                              maxLength={60}
-                              placeholder="Ej. Increíble arte digital conceptual"
-                              value={newMediaTitle}
-                              onChange={(e) => setNewMediaTitle(e.target.value)}
-                              className="w-full bg-slate-950 border border-slate-850 rounded-xl py-2 px-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-xs"
-                            />
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tipo de aporte</label>
-                              <select
-                                value={newMediaType}
-                                onChange={(e) => setNewMediaType(e.target.value as any)}
-                                className="w-full bg-slate-950 border border-slate-850 rounded-xl py-2 px-2 text-slate-300 focus:outline-none focus:border-indigo-500 text-xs"
-                              >
-                                <option value="link">Enlace general 🔗</option>
-                                <option value="image">Imagen 🖼️</option>
-                                <option value="video">Video 🎥</option>
-                                <option value="audio">Música/Audio 🎵</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Categoría</label>
-                              <input
-                                type="text"
-                                maxLength={15}
-                                placeholder="Ej. Música, Meme, Arte"
-                                value={newMediaCategory}
-                                onChange={(e) => setNewMediaCategory(e.target.value)}
-                                className="w-full bg-slate-950 border border-slate-850 rounded-xl py-2 px-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-xs"
-                              />
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Enlace (URL)</label>
-                            <input
-                              type="text"
-                              required
-                              placeholder="https://ejemplo.com/recurso"
-                              value={newMediaUrl}
-                              onChange={(e) => setNewMediaUrl(e.target.value)}
-                              className="w-full bg-slate-950 border border-slate-850 rounded-xl py-2 px-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-xs"
-                            />
-                          </div>
-
-                          <button
-                            type="submit"
-                            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all cursor-pointer text-center"
-                          >
-                            Publicar Anónimamente
-                          </button>
-                        </motion.form>
-                      )}
-                    </AnimatePresence>
-
-                    {/* Filter Strip */}
-                    <div className="flex gap-1.5 overflow-x-auto px-4 py-2 border-b border-slate-900 bg-slate-950/40 shrink-0 text-[10px]">
-                      {(['all', 'image', 'video', 'audio', 'link'] as const).map((filter) => {
-                        const label = filter === 'all' ? 'Todos' : filter === 'image' ? 'Imágenes 🖼️' : filter === 'video' ? 'Videos 🎥' : filter === 'audio' ? 'Música 🎵' : 'Enlaces 🔗';
-                        return (
-                          <button
-                            key={filter}
-                            onClick={() => setMediaFilter(filter)}
-                            className={`px-2.5 py-1 rounded-full whitespace-nowrap font-bold border transition-all cursor-pointer ${
-                              mediaFilter === filter
-                                ? 'bg-indigo-500/15 border-indigo-500 text-indigo-400 shadow-sm'
-                                : 'bg-slate-900 border-transparent text-slate-400 hover:text-slate-300'
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => stopRecording(false)}
+                          className="py-1.5 px-3 bg-rose-600 hover:bg-rose-500 rounded-xl text-white font-extrabold text-xs cursor-pointer transition-all flex items-center gap-1"
+                          title="Enviar nota de voz"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Enviar</span>
+                        </button>
+                      </div>
                     </div>
+                  ) : (
+                    <form
+                      onSubmit={handleSendMessage}
+                      className="flex gap-2"
+                    >
+                      <button
+                        type="button"
+                        onClick={startRecording}
+                        className="p-3 bg-slate-900 border border-slate-800 hover:border-indigo-500/30 hover:bg-indigo-500/5 text-slate-400 hover:text-indigo-400 rounded-2xl transition-all cursor-pointer flex items-center justify-center aspect-square"
+                        title="Grabar mensaje de voz"
+                      >
+                        <Mic className="w-4 h-4 text-indigo-400" />
+                      </button>
+                      
+                      <input
+                        type="text"
+                        maxLength={1000}
+                        value={messageInput}
+                        onChange={(e) => setMessageInput(e.target.value)}
+                        className="flex-1 bg-slate-900/60 border border-slate-800 rounded-2xl py-3 px-4 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-xs"
+                        placeholder="Escribe un mensaje anónimo..."
+                      />
+                      
+                      <button
+                        type="submit"
+                        disabled={!messageInput.trim()}
+                        className={`p-3 rounded-2xl text-white font-bold transition-all shrink-0 shadow-lg cursor-pointer flex items-center justify-center aspect-square ${
+                          messageInput.trim() 
+                            ? 'bg-indigo-600 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] shadow-indigo-500/10' 
+                            : 'bg-slate-900 text-slate-600 border border-slate-800/80 cursor-not-allowed'
+                        }`}
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </form>
+                  )}
+                </div>
 
-                    {/* Media Scroll list */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                      {mediaContributions.filter(m => mediaFilter === 'all' || m.type === mediaFilter).length === 0 ? (
-                        <div className="text-center py-16 space-y-3">
-                          <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-slate-600">
-                            <Share2 className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-slate-400">Sin aportes multimedia</p>
-                            <p className="text-[10px] text-slate-600 max-w-xs mx-auto mt-1 leading-normal">
-                              Nadie ha compartido {mediaFilter === 'all' ? 'contenido' : mediaFilter === 'image' ? 'imágenes' : mediaFilter === 'video' ? 'videos' : mediaFilter === 'audio' ? 'música' : 'enlaces'} aún. ¡Aporta un enlace para animar la sala!
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        mediaContributions
-                          .filter(m => mediaFilter === 'all' || m.type === mediaFilter)
-                          .map((item) => {
-                            const hasLiked = item.likedBy && item.likedBy.includes(userId);
-                            return (
-                              <div
-                                key={item.id}
-                                className="group relative bg-slate-900/30 border border-slate-900/80 hover:border-slate-800/80 rounded-2xl p-3.5 space-y-2.5 transition-all shadow-sm hover:shadow-md"
-                              >
-                                {/* Sender Badge & Time */}
-                                <div className="flex items-center justify-between text-[10px]">
-                                  <div className="flex items-center gap-1.5 overflow-hidden">
-                                    <div
-                                      className="w-1.5 h-1.5 rounded-full"
-                                      style={{ backgroundColor: item.senderColor }}
-                                    />
-                                    <span className="font-extrabold truncate" style={{ color: item.senderColor }}>
-                                      {item.senderName}
-                                    </span>
-                                  </div>
-                                  <span className="text-slate-600 font-mono text-[9px]">
-                                    {formatTime(item.timestamp)}
-                                  </span>
-                                </div>
-
-                                {/* Title & Category tag */}
-                                <div className="space-y-1">
-                                  <div className="flex items-start gap-1.5 justify-between">
-                                    <h4 className="font-bold text-xs text-slate-100 leading-snug group-hover:text-indigo-400 transition-colors break-words flex-1">
-                                      {item.title}
-                                    </h4>
-                                    <span className="text-[8px] uppercase font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/10 shrink-0 ml-1">
-                                      {item.category || 'General'}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Type Preview Render (If Image/Video/etc) */}
-                                {item.type === 'image' && (
-                                  <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950 aspect-video group-hover:border-slate-700/80 transition-colors">
-                                    <img
-                                      src={item.url}
-                                      alt={item.title}
-                                      className="w-full h-full object-cover"
-                                      referrerPolicy="no-referrer"
-                                      onError={(e) => {
-                                        // fallback if image fails to load
-                                        (e.target as HTMLElement).style.display = 'none';
-                                      }}
-                                    />
-                                  </div>
-                                )}
-
-                                {item.type === 'video' && (
-                                  <div className="rounded-xl border border-slate-850 bg-slate-950/60 p-3 flex items-center justify-between gap-3 group-hover:border-slate-850 transition-colors">
-                                    <div className="flex items-center gap-2 overflow-hidden">
-                                      <div className="w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0">
-                                        <Film className="w-3.5 h-3.5" />
-                                      </div>
-                                      <div className="text-[10px] text-slate-400 font-semibold truncate max-w-[140px]">
-                                        Video Compartido
-                                      </div>
-                                    </div>
-                                    <div className="p-1 rounded-full bg-slate-900 border border-slate-800 text-slate-500">
-                                      <Film className="w-3 h-3" />
-                                    </div>
-                                  </div>
-                                )}
-
-                                {item.type === 'audio' && (
-                                  <div className="rounded-xl border border-slate-850 bg-slate-950/60 p-3 flex items-center justify-between gap-3 group-hover:border-slate-850 transition-colors">
-                                    <div className="flex items-center gap-2 overflow-hidden">
-                                      <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
-                                        <Music className="w-3.5 h-3.5" />
-                                      </div>
-                                      <div className="text-[10px] text-slate-400 font-semibold truncate max-w-[140px]">
-                                        Música/Audio Compartido
-                                      </div>
-                                    </div>
-                                    <div className="p-1 rounded-full bg-slate-900 border border-slate-800 text-slate-500">
-                                      <Music className="w-3 h-3" />
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Bottom Interactions Panel */}
-                                <div className="flex items-center justify-between pt-2.5 border-t border-slate-900/60 text-xs">
-                                  {/* Like Button */}
-                                  <button
-                                    onClick={() => handleLikeMedia(item.id)}
-                                    className={`flex items-center gap-1.5 font-bold transition-all cursor-pointer hover:scale-105 active:scale-95 ${
-                                      hasLiked
-                                        ? 'text-rose-500'
-                                        : 'text-slate-500 hover:text-rose-400'
-                                    }`}
-                                  >
-                                    <Heart className={`w-3.5 h-3.5 ${hasLiked ? 'fill-rose-500 stroke-rose-500 animate-pulse' : ''}`} />
-                                    <span className="font-mono text-[10px]">{item.likes || 0}</span>
-                                  </button>
-
-                                  {/* Open Link Button */}
-                                  <a
-                                    href={item.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer"
-                                  >
-                                    <span>Visitar enlace</span>
-                                    <ExternalLink className="w-3 h-3 animate-pulse" />
-                                  </a>
-                                </div>
-                              </div>
-                            );
-                          })
-                      )}
-                    </div>
-                  </div>
-                )}
               </motion.div>
 
             )}

@@ -1,4 +1,4 @@
-import { User, ChatMessage, SignalingQueueItem, RoomInfo } from './types';
+import { User, ChatMessage, SignalingQueueItem, RoomInfo, DebateTopic } from './types';
 
 export const STATIC_ROOMS: RoomInfo[] = [
   {
@@ -42,6 +42,7 @@ interface GlobalChatStore {
   users: Map<string, User>;
   roomMessages: Map<string, ChatMessage[]>;
   signalingQueues: Map<string, SignalingQueueItem[]>;
+  debates: DebateTopic[];
 }
 
 // Ensure the store is persistent in Next.js development HMR reloads
@@ -53,6 +54,44 @@ export const chatStore: GlobalChatStore = globalForChat.chatStore ?? {
   users: new Map(),
   roomMessages: new Map(),
   signalingQueues: new Map(),
+  debates: [
+    {
+      id: 'd1',
+      title: '¿La Inteligencia Artificial reemplazará por completo a los programadores junior?',
+      description: 'Con el avance exponencial de LLMs y agentes autónomos como Devin o Copilot, ¿crees que los puestos iniciales corren peligro real o solo se transformará el rol?',
+      category: 'Tecnología',
+      creatorId: 'system',
+      creatorName: 'Moderador_Astral',
+      creatorColor: '#10b981',
+      timestamp: Date.now() - 3600000 * 3,
+      votes: 12,
+      votedBy: []
+    },
+    {
+      id: 'd2',
+      title: '¿Pizza con piña: Crimen culinario o genialidad agridulce?',
+      description: 'El debate gastronómico más polémico de internet. Defiende tus argumentos científicos, culturales y morales de por qué la piña pertenece (o no) a la pizza.',
+      category: 'Cotidiano',
+      creatorId: 'system',
+      creatorName: 'Moderador_Solar',
+      creatorColor: '#f43f5e',
+      timestamp: Date.now() - 3600000 * 5,
+      votes: 28,
+      votedBy: []
+    },
+    {
+      id: 'd3',
+      title: '¿Existe el libre albedrío o todo nuestro destino está predeterminado físicamente?',
+      description: 'Desde la física cuántica hasta la neurociencia, ¿tenemos control real sobre nuestras elecciones diarias o somos simplemente dominós cayendo en una cadena predeterminada?',
+      category: 'Filosofía',
+      creatorId: 'system',
+      creatorName: 'Moderador_Místico',
+      creatorColor: '#a855f7',
+      timestamp: Date.now() - 3600000 * 12,
+      votes: 19,
+      votedBy: []
+    }
+  ],
 };
 
 // Always bind to globalThis to ensure a single shared singleton across all Next.js server chunks/endpoints

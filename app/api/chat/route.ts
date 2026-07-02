@@ -151,6 +151,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Ensure room messages cache is initialized for any joined room (like debate rooms)
+    if (currentRoom && !chatStore.roomMessages.has(currentRoom)) {
+      chatStore.roomMessages.set(currentRoom, []);
+    }
+
     // 4. GROUP CHAT MESSAGES
     if (sendMessage && currentRoom) {
       const messages = chatStore.roomMessages.get(currentRoom) || [];
@@ -165,6 +170,66 @@ export async function POST(req: NextRequest) {
       messages.push(newMsg);
       // Retain last 50 messages to keep RAM lightweight
       chatStore.roomMessages.set(currentRoom, messages.slice(-50));
+    }
+
+    // Handle voice/audio messages
+    const sendAudioMessage = body.sendAudioMessage;
+    if (sendAudioMessage && currentRoom) {
+      const messages = chatStore.roomMessages.get(currentRoom) || [];
+      const newMsg: ChatMessage = {
+        id: generateId(),
+        senderId: userId,
+        senderName: user.name,
+        senderColor: user.color,
+        text: "🎤 Mensaje de voz",
+        timestamp: now,
+        audioUrl: sendAudioMessage
+      };
+      messages.push(newMsg);
+      chatStore.roomMessages.set(currentRoom, messages.slice(-50));
+    }
+
+    // Handle debate creation
+    const createDebate = body.createDebate;
+    if (createDebate) {
+      const debateId = 'debate_' + generateId();
+      const newDebate = {
+        id: debateId,
+        title: createDebate.title,
+        description: createDebate.description,
+        category: createDebate.category || 'Debate',
+        creatorId: userId,
+        creatorName: user.name,
+        creatorColor: user.color,
+        timestamp: now,
+        votes: 1,
+        votedBy: [userId]
+      };
+      chatStore.debates = chatStore.debates || [];
+      chatStore.debates.unshift(newDebate);
+      
+      // Initialize debate room messages
+      chatStore.roomMessages.set(debateId, []);
+    }
+
+    // Handle debate voting
+    const voteDebateId = body.voteDebateId;
+    if (voteDebateId && chatStore.debates) {
+      const debate = chatStore.debates.find(d => d.id === voteDebateId);
+      if (debate) {
+        if (!debate.votedBy) {
+          debate.votedBy = [];
+        }
+        if (debate.votedBy.includes(userId)) {
+          // Downvote if already upvoted
+          debate.votedBy = debate.votedBy.filter(id => id !== userId);
+          debate.votes = Math.max(0, debate.votes - 1);
+        } else {
+          // Upvote
+          debate.votedBy.push(userId);
+          debate.votes += 1;
+        }
+      }
     }
 
     // 5. QUEUE OUTGOING WEBRTC SIGNALS
@@ -303,6 +368,7 @@ export async function POST(req: NextRequest) {
       messages: currentMessages,
       signals: mySignals,
       rooms: roomsWithCount,
+      debates: chatStore.debates || [],
       stats: {
         totalOnline,
         searchingRandomCount: Array.from(chatStore.users.values()).filter(u => u.isSearchingRandom).length

@@ -20,6 +20,7 @@ export interface ChatMessage {
   senderColor: string;
   text: string;
   timestamp: number;
+  audioUrl?: string; // Base64 voice note representation
 }
 
 export interface SignalingQueueItem {
@@ -31,6 +32,19 @@ export interface SignalingQueueItem {
   timestamp: number;
 }
 
+export interface DebateTopic {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  creatorId: string;
+  creatorName: string;
+  creatorColor: string;
+  timestamp: number;
+  votes: number;
+  votedBy: string[]; // List of user IDs who upvoted
+}
+
 export interface PollRequest {
   userId: string;
   name?: string;
@@ -40,29 +54,11 @@ export interface PollRequest {
   currentRoom: string | null;
   isSearchingRandom: boolean;
   sendMessage?: string; // Text to send to current room
+  sendAudioMessage?: string; // Base64 audio string to send to current room
+  createDebate?: { title: string; description: string; category: string }; // Payload to start a new debate
+  voteDebateId?: string; // Id of the debate topic to upvote
   outgoingSignals?: Omit<SignalingQueueItem, 'timestamp'>[];
   action?: 'leave-random' | 'disconnect';
-  addMediaContribution?: {
-    title: string;
-    url: string;
-    type: 'image' | 'video' | 'audio' | 'link';
-    category?: string;
-  };
-  likeMediaId?: string; // ID of the media contribution to toggle like
-}
-
-export interface MediaContribution {
-  id: string;
-  title: string;
-  url: string;
-  type: 'image' | 'video' | 'audio' | 'link';
-  category?: string;
-  senderId: string;
-  senderName: string;
-  senderColor: string;
-  timestamp: number;
-  likes: number;
-  likedBy: string[]; // List of userIds who liked it
 }
 
 export interface RoomInfo {
@@ -72,4 +68,3 @@ export interface RoomInfo {
   icon: string;
   tags: string[];
 }
-
