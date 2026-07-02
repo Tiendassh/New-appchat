@@ -2,9 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { chatStore, STATIC_ROOMS } from '@/lib/chatStore';
 import { User, ChatMessage, SignalingQueueItem, PollRequest } from '@/lib/types';
 
+const SECURITY_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'X-XSS-Protection': '1; mode=block',
+};
+
 // Simple helper to generate a unique ID
 function generateId(): string {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: SECURITY_HEADERS,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -20,13 +37,11 @@ export async function POST(req: NextRequest) {
       isSearchingRandom,
       sendMessage,
       outgoingSignals,
-      action,
-      addMediaContribution,
-      likeMediaId
+      action
     } = body;
 
     if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+      return NextResponse.json({ error: 'userId is required' }, { status: 400, headers: SECURITY_HEADERS });
     }
 
     const now = Date.now();
@@ -81,7 +96,7 @@ export async function POST(req: NextRequest) {
       }
       chatStore.users.delete(userId);
       chatStore.signalingQueues.delete(userId);
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true }, { headers: SECURITY_HEADERS });
     }
 
     // 3. GET OR INITIALIZE USER SESSION
@@ -150,48 +165,6 @@ export async function POST(req: NextRequest) {
       messages.push(newMsg);
       // Retain last 50 messages to keep RAM lightweight
       chatStore.roomMessages.set(currentRoom, messages.slice(-50));
-    }
-
-    // 4b. ANONYMOUS MEDIA CONTRIBUTIONS
-    if (addMediaContribution) {
-      if (!chatStore.mediaContributions) {
-        chatStore.mediaContributions = [];
-      }
-      const newMedia = {
-        id: generateId(),
-        title: addMediaContribution.title.substring(0, 100) || 'Sin título',
-        url: addMediaContribution.url,
-        type: addMediaContribution.type || 'link',
-        category: addMediaContribution.category || 'Varios',
-        senderId: userId,
-        senderName: user.name,
-        senderColor: user.color,
-        timestamp: now,
-        likes: 0,
-        likedBy: []
-      };
-      chatStore.mediaContributions.push(newMedia);
-      // Retain last 60 media contributions
-      chatStore.mediaContributions = chatStore.mediaContributions.slice(-60);
-    }
-
-    if (likeMediaId) {
-      if (!chatStore.mediaContributions) {
-        chatStore.mediaContributions = [];
-      }
-      const mediaItem = chatStore.mediaContributions.find(m => m.id === likeMediaId);
-      if (mediaItem) {
-        const likedIndex = mediaItem.likedBy.indexOf(userId);
-        if (likedIndex > -1) {
-          // Unlike
-          mediaItem.likedBy.splice(likedIndex, 1);
-          mediaItem.likes = Math.max(0, mediaItem.likes - 1);
-        } else {
-          // Like
-          mediaItem.likedBy.push(userId);
-          mediaItem.likes += 1;
-        }
-      }
     }
 
     // 5. QUEUE OUTGOING WEBRTC SIGNALS
@@ -330,15 +303,14 @@ export async function POST(req: NextRequest) {
       messages: currentMessages,
       signals: mySignals,
       rooms: roomsWithCount,
-      mediaContributions: chatStore.mediaContributions || [],
       stats: {
         totalOnline,
         searchingRandomCount: Array.from(chatStore.users.values()).filter(u => u.isSearchingRandom).length
       }
-    });
+    }, { headers: SECURITY_HEADERS });
 
   } catch (error) {
     console.error('Error in chat API route:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500, headers: SECURITY_HEADERS });
   }
 }
