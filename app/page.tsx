@@ -382,9 +382,23 @@ export default function AnonymousChatApp() {
         : { audio: true, video: { width: 640, height: 480, facingMode: 'user' } };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      setLocalStream(stream);
       setVideoEnabled(!retryAudioOnly);
       setAudioEnabled(true);
+
+      // If we are currently screen sharing, let's create a combined stream with the screen sharing track instead!
+      if (isScreenSharing && screenStreamRef.current) {
+        const screenTrack = screenStreamRef.current.getVideoTracks()[0];
+        const audioTrack = stream.getAudioTracks()[0];
+        if (screenTrack) {
+          const tracks = [screenTrack];
+          if (audioTrack) tracks.push(audioTrack);
+          const combinedStream = new MediaStream(tracks);
+          setLocalStream(combinedStream);
+          return combinedStream;
+        }
+      }
+
+      setLocalStream(stream);
       return stream;
     } catch (err: any) {
       console.warn("Camera media retrieval failed, attempting audio-only fallback:", err);
@@ -633,6 +647,22 @@ export default function AnonymousChatApp() {
       stopScreenShare();
     } else {
       startScreenShare();
+    }
+  };
+
+  const handleChatScreenShare = async () => {
+    if (activeCall) {
+      toggleScreenShare();
+    } else {
+      if (isScreenSharing) {
+        await stopScreenShare();
+        setCallRejectedNotification("Compartición de pantalla desactivada.");
+        setTimeout(() => setCallRejectedNotification(null), 3500);
+      } else {
+        await startScreenShare();
+        setCallRejectedNotification("¡Pantalla compartida! Llama a un usuario o inicia un Match 1-a-1.");
+        setTimeout(() => setCallRejectedNotification(null), 5000);
+      }
     }
   };
 
@@ -2656,6 +2686,19 @@ export default function AnonymousChatApp() {
                         title="Grabar mensaje de voz"
                       >
                         <Mic className="w-4 h-4 text-indigo-400" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleChatScreenShare}
+                        className={`p-3 border rounded-2xl transition-all cursor-pointer flex items-center justify-center aspect-square ${
+                          isScreenSharing 
+                            ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25' 
+                            : 'bg-slate-900 border-slate-800 hover:border-indigo-500/30 hover:bg-indigo-500/5 text-slate-400 hover:text-indigo-400'
+                        }`}
+                        title={isScreenSharing ? "Detener de compartir pantalla" : "Compartir pantalla"}
+                      >
+                        <ScreenShare className="w-4 h-4" />
                       </button>
                       
                       <input
