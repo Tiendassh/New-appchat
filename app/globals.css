@@ -44,3 +44,24 @@
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+@keyframes scanlaser {
+  0% { top: 15%; opacity: 0; }
+  5% { opacity: 0.8; }
+  50% { top: 85%; opacity: 0.8; }
+  95% { opacity: 0.8; }
+  100% { top: 15%; opacity: 0; }
+}
+
+.animate-scanline {
+  animation: scanline 8s linear infinite;
+}
+
+.animate-scanlaser {
+  animation: scanlaser 4s ease-in-out infinite;
+}

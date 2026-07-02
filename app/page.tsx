@@ -178,6 +178,71 @@ export default function AnonymousChatApp() {
       console.warn('Audio play failed or blocked:', err);
     }
   };
+
+  // Play sweet UI feedback sounds
+  const playInteractionMode = (type: 'color' | 'click' | 'randomize' | 'select', optionIndex?: number) => {
+    if (!soundsEnabledRef.current) return;
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+
+      if (type === 'color') {
+        const frequencies = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25];
+        const freq = frequencies[optionIndex ?? 0] ?? 329.63;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.setValueAtTime(0.04, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+      } else if (type === 'randomize') {
+        const notes = [293.66, 392.00, 587.33];
+        notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.05);
+          gain.gain.setValueAtTime(0.03, ctx.currentTime + i * 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.05 + 0.08);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + i * 0.05);
+          osc.stop(ctx.currentTime + i * 0.05 + 0.08);
+        });
+      } else if (type === 'select') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.04);
+        gain.gain.setValueAtTime(0.02, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.04);
+      } else if (type === 'click') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(220, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.04, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.12);
+      }
+    } catch (err) {
+      console.warn('UI Audio synthesis blocked:', err);
+    }
+  };
   
   // WebRTC & Call States
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -859,147 +924,297 @@ export default function AnonymousChatApp() {
   // Render Login Layout
   if (!hasEntered) {
     return (
-      <div className="min-height-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-radial from-slate-900 to-slate-950 relative overflow-hidden" id="login-screen">
+      <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-950 relative overflow-hidden" id="login-screen">
         {/* Background Glowing Decors */}
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-rose-500/10 blur-[100px] pointer-events-none" />
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-500/5 blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-rose-500/5 blur-[120px] pointer-events-none" />
 
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="max-w-md w-full space-y-8 bg-slate-900/60 backdrop-blur-cyber border border-slate-800 p-8 rounded-3xl glow-primary"
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+          className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-12 gap-8 bg-slate-900/40 backdrop-blur-cyber border border-slate-800/80 p-6 md:p-8 rounded-[2rem] shadow-2xl relative overflow-hidden"
         >
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-tr from-rose-500 to-indigo-500 text-white mb-4 shadow-lg shadow-indigo-500/20">
-              <Sparkles className="w-8 h-8 animate-pulse" />
-            </div>
-            <h2 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-rose-400 via-pink-500 to-indigo-400 bg-clip-text text-transparent">
-              Incognito Chat
-            </h2>
-            <p className="mt-2 text-sm text-slate-400">
-              Salas de Voz, Video y Chat 100% Anónimo
-            </p>
-          </div>
-
-          {/* Guidelines Box */}
-          <div className="p-4 bg-slate-950/50 border border-slate-800 rounded-2xl text-xs space-y-2 text-slate-400 leading-relaxed">
-            <div className="flex items-center gap-1.5 font-semibold text-rose-400 mb-1">
-              <AlertTriangle className="w-3.5 h-3.5" />
-              <span>Espacio Privado Anónimo:</span>
-            </div>
-            <p>• Los mensajes no se guardan en ninguna base de datos ni historial.</p>
-            <p>• Tu sesión es efímera: al recargar, tu historial desaparece para siempre.</p>
-            <p>• Conexión directa P2P (Peer-to-Peer) segura para transmisiones de voz y video.</p>
-          </div>
-
-          <div className="space-y-6">
+          {/* Left panel: Form */}
+          <div className="md:col-span-7 space-y-6 flex flex-col justify-between">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                Tu Alias Anónimo
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  maxLength={25}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-3 px-4 pl-4 pr-12 text-slate-100 font-medium placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  placeholder="Ej. Lobo_Cósmico"
-                />
-                <button
-                  type="button"
-                  onClick={() => setName(getRandomName())}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-400 transition-colors p-1"
-                  title="Generar otro alias"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2.5 rounded-xl bg-gradient-to-tr from-rose-500/10 to-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                  <Sparkles className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-rose-400 via-pink-500 to-indigo-400 bg-clip-text text-transparent">
+                    Incognito Chat
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Salas de Voz, Video y Chat 100% Anónimo
+                  </p>
+                </div>
+              </div>
+
+              {/* Guidelines Box */}
+              <div className="p-4 bg-slate-950/40 border border-slate-850 rounded-2xl text-[11px] space-y-1.5 text-slate-400 leading-relaxed mt-4">
+                <div className="flex items-center gap-1.5 font-bold text-rose-400/95 mb-0.5 uppercase tracking-wider">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Espacio Privado Anónimo:</span>
+                </div>
+                <p>• Los mensajes no se guardan en ninguna base de datos ni historial.</p>
+                <p>• Tu sesión es efímera: al recargar, tu historial desaparece para siempre.</p>
+                <p>• Conexión directa P2P (Peer-to-Peer) segura para transmisiones de voz y video.</p>
               </div>
             </div>
 
-            {/* Custom Avatar Color Accent */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                Color de tu Holograma
-              </label>
-              <div className="flex gap-3 justify-center">
-                {avatarColors.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setColor(c)}
-                    className="w-8 h-8 rounded-full border-2 transition-transform duration-200 cursor-pointer relative"
-                    style={{ 
-                      backgroundColor: c, 
-                      borderColor: color === c ? '#ffffff' : 'transparent',
-                      transform: color === c ? 'scale(1.15)' : 'scale(1)'
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Tu Alias Anónimo
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    maxLength={25}
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      playInteractionMode('select');
                     }}
+                    className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl py-2.5 px-4 pr-12 text-slate-100 font-medium placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-transparent transition-all text-sm"
+                    placeholder="Ej. Lobo_Cósmico"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setName(getRandomName());
+                      playInteractionMode('randomize');
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-400 transition-all p-1.5 hover:scale-110 active:scale-95 cursor-pointer"
+                    title="Generar otro alias"
                   >
-                    {color === c && (
-                      <Check className="w-4 h-4 text-slate-950 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 stroke-[3]" />
-                    )}
+                    <RefreshCw className="w-3.5 h-3.5" />
                   </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Sex / Age */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  Género
-                </label>
-                <select
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-3 px-4 text-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                >
-                  <option value="unspecified">Prefiero ocultar</option>
-                  <option value="male">Hombre ♂</option>
-                  <option value="female">Mujer ♀</option>
-                  <option value="couple">Pareja ⚤</option>
-                  <option value="nonbinary">No Binario ⚨</option>
-                </select>
+                </div>
               </div>
 
+              {/* Custom Avatar Color Accent */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  Edad
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Color de tu Holograma
                 </label>
+                <div className="flex gap-2.5 justify-start">
+                  {avatarColors.map((c, idx) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => {
+                        setColor(c);
+                        playInteractionMode('color', idx);
+                      }}
+                      className="w-7 h-7 rounded-full border border-white/10 transition-all duration-200 cursor-pointer relative hover:scale-115 active:scale-90"
+                      style={{ 
+                        backgroundColor: c, 
+                        boxShadow: color === c ? `0 0 12px ${c}` : 'none',
+                        borderColor: color === c ? '#ffffff' : 'transparent',
+                        transform: color === c ? 'scale(1.15)' : 'scale(1)'
+                      }}
+                    >
+                      {color === c && (
+                        <Check className="w-3.5 h-3.5 text-slate-950 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 stroke-[4]" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sex / Age */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Género
+                  </label>
+                  <select
+                    value={gender}
+                    onChange={(e) => {
+                      setGender(e.target.value);
+                      playInteractionMode('select');
+                    }}
+                    className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl py-2.5 px-3 text-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-xs cursor-pointer"
+                  >
+                    <option value="unspecified">Prefiero ocultar ░</option>
+                    <option value="male">Hombre ♂</option>
+                    <option value="female">Mujer ♀</option>
+                    <option value="couple">Pareja ⚤</option>
+                    <option value="nonbinary">No Binario ⚨</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Edad
+                  </label>
+                  <input
+                    type="number"
+                    min="18"
+                    max="99"
+                    value={age}
+                    onChange={(e) => {
+                      setAge(e.target.value);
+                      playInteractionMode('select');
+                    }}
+                    className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl py-2.5 px-3 text-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Age disclaimer verification */}
+              <div className="flex items-start gap-2.5 pt-1.5">
                 <input
-                  type="number"
-                  min="18"
-                  max="99"
-                  value={age}
-                  onChange={(e) => setAge(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-3 px-4 text-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  type="checkbox"
+                  id="age-check"
+                  checked={ageConfirmed}
+                  onChange={(e) => {
+                    setAgeConfirmed(e.target.checked);
+                    playInteractionMode('select');
+                  }}
+                  className="w-4 h-4 mt-0.5 accent-rose-500 rounded border-slate-800 bg-slate-950 text-rose-500 focus:ring-offset-slate-900 focus:ring-rose-500 cursor-pointer"
                 />
+                <label htmlFor="age-check" className="text-[10px] text-slate-400 leading-normal cursor-pointer select-none">
+                  Confirmo que soy <span className="text-rose-400 font-bold">mayor de 18 años (+18)</span> y acepto mantener interacciones respetuosas.
+                </label>
               </div>
-            </div>
-
-            {/* Age disclaimer verification */}
-            <div className="flex items-start gap-3 pt-2">
-              <input
-                type="checkbox"
-                id="age-check"
-                checked={ageConfirmed}
-                onChange={(e) => setAgeConfirmed(e.target.checked)}
-                className="w-4 h-4 mt-1 accent-rose-500 rounded border-slate-800 bg-slate-950 text-rose-500 focus:ring-offset-slate-900 focus:ring-rose-500"
-              />
-              <label htmlFor="age-check" className="text-xs text-slate-400 leading-normal cursor-pointer select-none">
-                Confirmo que soy <span className="text-rose-400 font-semibold">mayor de 18 años (+18)</span> y acepto mantener interacciones respetuosas.
-              </label>
             </div>
 
             <button
               type="button"
               disabled={!ageConfirmed || !name.trim()}
-              onClick={() => setHasEntered(true)}
-              className="w-full bg-gradient-to-r from-rose-500 to-indigo-600 text-white font-bold py-3.5 px-4 rounded-2xl cursor-pointer hover:shadow-lg hover:shadow-indigo-500/20 focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase text-sm tracking-wider"
+              onClick={() => {
+                playInteractionMode('click');
+                setHasEntered(true);
+              }}
+              className="w-full mt-4 bg-gradient-to-r from-rose-500 via-pink-500 to-indigo-600 text-white font-bold py-3 px-4 rounded-2xl cursor-pointer hover:shadow-lg hover:shadow-indigo-500/20 focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed uppercase text-xs tracking-widest"
             >
               Iniciar Chat Incógnito
             </button>
+          </div>
+
+          {/* Right panel: Active Hologram Preview */}
+          <div className="md:col-span-5 bg-slate-950/50 border border-slate-800/80 rounded-[1.75rem] p-6 flex flex-col items-center justify-between relative overflow-hidden min-h-[320px] md:min-h-full">
+            {/* Hologram Projector Effect Details */}
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent animate-pulse" />
+            
+            {/* Grid Pattern Background */}
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0.25)_1px,transparent_1px),linear-gradient(90deg,rgba(18,24,38,0.25)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none opacity-40" />
+
+            {/* Scanline overlay */}
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-indigo-500/[0.03] to-transparent bg-[size:100%_4px] pointer-events-none animate-scanline" />
+
+            <div className="w-full text-center space-y-1 z-10">
+              <span className="inline-block text-[9px] font-mono tracking-[0.25em] text-indigo-400 uppercase bg-indigo-500/5 px-2.5 py-0.5 rounded-full border border-indigo-500/10">
+                PROYECTOR HOLOGRÁFICO
+              </span>
+              <p className="text-[10px] text-slate-500 font-mono">ESTADO: ONLINE · SEÑAL ESTABLE</p>
+            </div>
+
+            {/* Hologram sphere projection container */}
+            <div className="relative my-6 flex items-center justify-center w-36 h-36 z-10">
+              {/* Spinning outer ring */}
+              <div 
+                className="absolute inset-0 rounded-full border border-dashed animate-[spin_20s_linear_infinite]"
+                style={{ borderColor: `${color || '#6366f1'}40` }}
+              />
+              <div 
+                className="absolute inset-2.5 rounded-full border border-dashed animate-[spin_10s_linear_infinite_reverse] opacity-50"
+                style={{ borderColor: `${color || '#6366f1'}20` }}
+              />
+
+              {/* Pulsing glow aura background */}
+              <div 
+                className="absolute inset-5 rounded-full opacity-20 blur-xl transition-all duration-700 animate-pulse"
+                style={{ 
+                  backgroundColor: color || '#6366f1',
+                  animationDuration: `${Math.max(500, 2000 - Number(age || 18) * 15)}ms`
+                }}
+              />
+
+              {/* Radar core lines */}
+              <div 
+                className="absolute inset-5 rounded-full border transition-colors duration-500 flex items-center justify-center animate-pulse"
+                style={{ 
+                  borderColor: `${color || '#6366f1'}30`,
+                  boxShadow: `inset 0 0 15px ${color || '#6366f1'}20`
+                }}
+              >
+                {/* Center avatar core symbol */}
+                <div 
+                  className="w-14 h-14 rounded-full flex items-center justify-center text-slate-100 transition-all duration-500"
+                  style={{ 
+                    backgroundColor: `${color || '#6366f1'}15`,
+                    boxShadow: `0 0 20px ${(color || '#6366f1')}30`,
+                    border: `1.5px solid ${color || '#6366f1'}`
+                  }}
+                >
+                  {gender === 'male' ? (
+                    <span className="text-xl font-bold select-none drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">♂</span>
+                  ) : gender === 'female' ? (
+                    <span className="text-xl font-bold select-none drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">♀</span>
+                  ) : gender === 'couple' ? (
+                    <span className="text-xl font-bold select-none drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">⚤</span>
+                  ) : gender === 'nonbinary' ? (
+                    <span className="text-xl font-bold select-none drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">⚨</span>
+                  ) : (
+                    <Cpu className="w-5 h-5 animate-pulse text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.5)]" />
+                  )}
+                </div>
+              </div>
+
+              {/* Scanner horizontal laser line */}
+              <div 
+                className="absolute left-1 right-1 h-[2px] blur-[1px] animate-scanlaser z-20"
+                style={{ backgroundColor: color || '#6366f1' }}
+              />
+            </div>
+
+            {/* Dynamic visual parameters readout */}
+            <div className="w-full space-y-2 z-10 text-center font-mono">
+              <div className="text-sm font-bold truncate tracking-wide text-slate-200">
+                {name || <span className="text-slate-600 italic font-normal">&lt;Sin Alias&gt;</span>}
+              </div>
+              <div className="flex items-center justify-center gap-3 text-[9px] text-slate-400">
+                <span>GEN: {gender === 'unspecified' ? 'OCULTO' : gender.toUpperCase()}</span>
+                <span className="text-slate-700">•</span>
+                <span>EDAD: {age} años</span>
+              </div>
+              
+              {/* Color Hex display code */}
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[9px] text-slate-500">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color || '#6366f1' }} />
+                <span>SPEC: {color ? color.toUpperCase() : 'N/A'}</span>
+              </div>
+            </div>
+
+            {/* Sound testing section (Sub-option 3) */}
+            <div className="w-full pt-4 border-t border-slate-900/60 z-10 flex flex-col items-center gap-1.5">
+              <span className="text-[9px] font-mono tracking-wider text-slate-500 uppercase">Probadora de Sonido Incógnito</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => playNotificationSound('message')}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-[9px] font-bold transition-all cursor-pointer hover:scale-[1.03] active:scale-95"
+                  title="Probar sonido de mensaje nuevo"
+                >
+                  <Volume2 className="w-3 h-3 text-slate-400" />
+                  <span>Mensaje 🔊</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => playNotificationSound('join')}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-[9px] font-bold transition-all cursor-pointer hover:scale-[1.03] active:scale-95"
+                  title="Probar sonido de usuario uniéndose"
+                >
+                  <Volume2 className="w-3 h-3 text-slate-400" />
+                  <span>Unión 🔊</span>
+                </button>
+              </div>
+            </div>
           </div>
         </motion.div>
       </div>
