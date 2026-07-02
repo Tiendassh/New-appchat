@@ -518,12 +518,19 @@ export default function AnonymousChatApp() {
           }
         }
 
-      } catch (err) {
-        console.error('Lobby polling error:', err);
+      } catch (err: any) {
+        // Log network failures gracefully, as they are expected during HMR/server reloads
+        if (err instanceof TypeError || (err.message && err.message.includes('Failed to fetch'))) {
+          console.warn('Lobby polling: Conexión temporalmente no disponible o recargando...');
+        } else {
+          console.error('Lobby polling error:', err);
+        }
       }
 
-      // Schedule next poll interval (1500ms)
-      setTimeout(poll, 1500);
+      // Schedule next poll interval (1500ms) only if we are still active
+      if (isPolling) {
+        setTimeout(poll, 1500);
+      }
     };
 
     // Begin loop
