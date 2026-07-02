@@ -21,6 +21,7 @@ import {
   X,
   Check,
   Volume2,
+  VolumeX,
   Tv,
   Camera,
   AlertTriangle,
@@ -110,6 +111,73 @@ export default function AnonymousChatApp() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [recordingSeconds, setRecordingSeconds] = useState<number>(0);
   const [recordingInterval, setRecordingInterval] = useState<any>(null);
+
+  // Sounds Notifications State & Refs
+  const [soundsEnabled, setSoundsEnabled] = useState<boolean>(true);
+  const messagesRef = useRef<ChatMessage[]>([]);
+  const roomUsersRef = useRef<Partial<User>[]>([]);
+  const soundsEnabledRef = useRef<boolean>(true);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    roomUsersRef.current = roomUsers;
+  }, [roomUsers]);
+
+  useEffect(() => {
+    soundsEnabledRef.current = soundsEnabled;
+  }, [soundsEnabled]);
+
+  // Play sound notifications using Web Audio API
+  const playNotificationSound = (type: 'message' | 'join') => {
+    if (!soundsEnabledRef.current) return;
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      
+      if (type === 'message') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.08, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+      } else if (type === 'join') {
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        const gain2 = ctx.createGain();
+
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(523.25, ctx.currentTime);
+        gain1.gain.setValueAtTime(0.06, ctx.currentTime);
+        gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(783.99, ctx.currentTime + 0.08);
+        gain2.gain.setValueAtTime(0.06, ctx.currentTime + 0.08);
+        gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+
+        osc1.start();
+        osc1.stop(ctx.currentTime + 0.12);
+        osc2.start();
+        osc2.stop(ctx.currentTime + 0.25);
+      }
+    } catch (err) {
+      console.warn('Audio play failed or blocked:', err);
+    }
+  };
   
   // WebRTC & Call States
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -411,10 +479,30 @@ export default function AnonymousChatApp() {
           setRooms(data.rooms);
         }
         if (data.roomUsers) {
-          setRoomUsers(data.roomUsers);
+          const newUsers = data.roomUsers as Partial<User>[];
+          const oldUsers = roomUsersRef.current;
+          if (mounted && hasEntered && oldUsers.length > 0 && newUsers.length > 0) {
+            const oldUserIds = new Set(oldUsers.map(u => u.id).filter(Boolean));
+            const newlyJoined = newUsers.some(u => u.id && u.id !== userId && !oldUserIds.has(u.id));
+            if (newlyJoined) {
+              playNotificationSound('join');
+            }
+          }
+          setRoomUsers(newUsers);
         }
         if (data.messages && !isSearchingRandom) {
-          setMessages(data.messages);
+          const newMsgs = data.messages as ChatMessage[];
+          const oldMsgs = messagesRef.current;
+          if (mounted && hasEntered && oldMsgs.length > 0 && newMsgs.length > 0) {
+            const lastNew = newMsgs[newMsgs.length - 1];
+            const lastOld = oldMsgs[oldMsgs.length - 1];
+            if (lastNew && lastOld && lastNew.id !== lastOld.id) {
+              if (lastNew.senderId !== userId) {
+                playNotificationSound('message');
+              }
+            }
+          }
+          setMessages(newMsgs);
         }
         if (data.debates) {
           setDebates(data.debates);
@@ -970,6 +1058,30 @@ export default function AnonymousChatApp() {
               </span>
             )}
           </div>
+
+          {/* Sound Notification Toggle Switch */}
+          <button
+            type="button"
+            onClick={() => setSoundsEnabled(prev => !prev)}
+            className={`flex items-center gap-1.5 py-1.5 px-3 rounded-2xl border text-xs font-bold transition-all cursor-pointer ${
+              soundsEnabled 
+                ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 hover:scale-[1.02]' 
+                : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-400 hover:scale-[1.02]'
+            }`}
+            title={soundsEnabled ? "Silenciar notificaciones sonoras" : "Activar notificaciones sonoras"}
+          >
+            {soundsEnabled ? (
+              <>
+                <Volume2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Sonido: ON</span>
+              </>
+            ) : (
+              <>
+                <VolumeX className="w-3.5 h-3.5 text-slate-500" />
+                <span className="hidden sm:inline">Sonido: OFF</span>
+              </>
+            )}
+          </button>
 
           {/* User profile card */}
           <div className="flex items-center gap-2 border border-slate-800/80 bg-slate-900/50 py-1.5 px-3.5 rounded-2xl">
