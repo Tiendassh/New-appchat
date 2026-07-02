@@ -1,4 +1,4 @@
-import { User, ChatMessage, SignalingQueueItem, RoomInfo } from './types';
+import { User, ChatMessage, SignalingQueueItem, RoomInfo, MediaContribution } from './types';
 
 export const STATIC_ROOMS: RoomInfo[] = [
   {
@@ -42,6 +42,7 @@ interface GlobalChatStore {
   users: Map<string, User>;
   roomMessages: Map<string, ChatMessage[]>;
   signalingQueues: Map<string, SignalingQueueItem[]>;
+  mediaContributions: MediaContribution[];
 }
 
 // Ensure the store is persistent in Next.js development HMR reloads
@@ -53,7 +54,9 @@ export const chatStore: GlobalChatStore = globalForChat.chatStore ?? {
   users: new Map(),
   roomMessages: new Map(),
   signalingQueues: new Map(),
+  mediaContributions: [],
 };
+
 
 if (process.env.NODE_ENV !== 'production') {
   globalForChat.chatStore = chatStore;

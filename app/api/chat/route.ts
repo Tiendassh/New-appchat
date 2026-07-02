@@ -20,7 +20,9 @@ export async function POST(req: NextRequest) {
       isSearchingRandom,
       sendMessage,
       outgoingSignals,
-      action
+      action,
+      addMediaContribution,
+      likeMediaId
     } = body;
 
     if (!userId) {
@@ -148,6 +150,48 @@ export async function POST(req: NextRequest) {
       messages.push(newMsg);
       // Retain last 50 messages to keep RAM lightweight
       chatStore.roomMessages.set(currentRoom, messages.slice(-50));
+    }
+
+    // 4b. ANONYMOUS MEDIA CONTRIBUTIONS
+    if (addMediaContribution) {
+      if (!chatStore.mediaContributions) {
+        chatStore.mediaContributions = [];
+      }
+      const newMedia = {
+        id: generateId(),
+        title: addMediaContribution.title.substring(0, 100) || 'Sin título',
+        url: addMediaContribution.url,
+        type: addMediaContribution.type || 'link',
+        category: addMediaContribution.category || 'Varios',
+        senderId: userId,
+        senderName: user.name,
+        senderColor: user.color,
+        timestamp: now,
+        likes: 0,
+        likedBy: []
+      };
+      chatStore.mediaContributions.push(newMedia);
+      // Retain last 60 media contributions
+      chatStore.mediaContributions = chatStore.mediaContributions.slice(-60);
+    }
+
+    if (likeMediaId) {
+      if (!chatStore.mediaContributions) {
+        chatStore.mediaContributions = [];
+      }
+      const mediaItem = chatStore.mediaContributions.find(m => m.id === likeMediaId);
+      if (mediaItem) {
+        const likedIndex = mediaItem.likedBy.indexOf(userId);
+        if (likedIndex > -1) {
+          // Unlike
+          mediaItem.likedBy.splice(likedIndex, 1);
+          mediaItem.likes = Math.max(0, mediaItem.likes - 1);
+        } else {
+          // Like
+          mediaItem.likedBy.push(userId);
+          mediaItem.likes += 1;
+        }
+      }
     }
 
     // 5. QUEUE OUTGOING WEBRTC SIGNALS
@@ -286,6 +330,7 @@ export async function POST(req: NextRequest) {
       messages: currentMessages,
       signals: mySignals,
       rooms: roomsWithCount,
+      mediaContributions: chatStore.mediaContributions || [],
       stats: {
         totalOnline,
         searchingRandomCount: Array.from(chatStore.users.values()).filter(u => u.isSearchingRandom).length

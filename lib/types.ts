@@ -42,6 +42,27 @@ export interface PollRequest {
   sendMessage?: string; // Text to send to current room
   outgoingSignals?: Omit<SignalingQueueItem, 'timestamp'>[];
   action?: 'leave-random' | 'disconnect';
+  addMediaContribution?: {
+    title: string;
+    url: string;
+    type: 'image' | 'video' | 'audio' | 'link';
+    category?: string;
+  };
+  likeMediaId?: string; // ID of the media contribution to toggle like
+}
+
+export interface MediaContribution {
+  id: string;
+  title: string;
+  url: string;
+  type: 'image' | 'video' | 'audio' | 'link';
+  category?: string;
+  senderId: string;
+  senderName: string;
+  senderColor: string;
+  timestamp: number;
+  likes: number;
+  likedBy: string[]; // List of userIds who liked it
 }
 
 export interface RoomInfo {
@@ -51,3 +72,4 @@ export interface RoomInfo {
   icon: string;
   tags: string[];
 }
+
