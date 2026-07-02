@@ -65,6 +65,28 @@ const avatarColors = [
   '#ff4500', // Orange-red
 ];
 
+// Helper to render static icon representing rooms
+const getRoomIcon = (iconName: string) => {
+  switch (iconName) {
+    case 'Lock': return <Lock className="w-5 h-5 text-indigo-400" />;
+    case 'Music': return <Music className="w-5 h-5 text-indigo-400" />;
+    case 'Film': return <Film className="w-5 h-5 text-indigo-400" />;
+    case 'Cpu': return <Cpu className="w-5 h-5 text-indigo-400" />;
+    default: return <MessageSquare className="w-5 h-5 text-indigo-400" />;
+  }
+};
+
+const getGenderLabel = (g?: string) => {
+  if (!g) return '';
+  switch (g) {
+    case 'male': return 'Hombre ♂';
+    case 'female': return 'Mujer ♀';
+    case 'couple': return 'Pareja ⚤';
+    case 'nonbinary': return 'No Binario ⚨';
+    default: return 'Anónimo';
+  }
+};
+
 export default function AnonymousChatApp() {
   const [mounted, setMounted] = useState<boolean>(false);
 
@@ -1547,28 +1569,6 @@ export default function AnonymousChatApp() {
       </div>
     );
   }
-
-  // Helper to render static icon representing rooms
-  const getRoomIcon = (iconName: string) => {
-    switch (iconName) {
-      case 'Lock': return <Lock className="w-5 h-5 text-indigo-400" />;
-      case 'Music': return <Music className="w-5 h-5 text-indigo-400" />;
-      case 'Film': return <Film className="w-5 h-5 text-indigo-400" />;
-      case 'Cpu': return <Cpu className="w-5 h-5 text-indigo-400" />;
-      default: return <MessageSquare className="w-5 h-5 text-indigo-400" />;
-    }
-  };
-
-  const getGenderLabel = (g?: string) => {
-    if (!g) return '';
-    switch (g) {
-      case 'male': return 'Hombre ♂';
-      case 'female': return 'Mujer ♀';
-      case 'couple': return 'Pareja ⚤';
-      case 'nonbinary': return 'No Binario ⚨';
-      default: return 'Anónimo';
-    }
-  };
 
   // Render Main Layout Dashboard
   return (
