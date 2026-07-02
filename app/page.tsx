@@ -1579,7 +1579,16 @@ export default function AnonymousChatApp() {
                       </div>
 
                       {/* Small mobile rooms listing icon toggle to switch channels if sidebar is missing */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('debates')}
+                          className="flex items-center gap-1.5 py-1.5 px-3 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 hover:border-indigo-500/40 rounded-full font-bold text-[10px] transition-all cursor-pointer hover:scale-105"
+                          title="Volver a los foros de debate"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+                          <span>Ver Foros</span>
+                        </button>
                         <button
                           type="button"
                           onClick={startRandomMatch}
