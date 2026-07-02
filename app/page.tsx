@@ -93,18 +93,57 @@ export default function AnonymousChatApp() {
   const [lobbyStats, setLobbyStats] = useState({ totalOnline: 1, searchingRandomCount: 0 });
   const [rooms, setRooms] = useState<(RoomInfo & { activeUsers: number })[]>([]);
   const [roomUsers, setRoomUsers] = useState<Partial<User>[]>([]);
+  const [coverTab, setCoverTab] = useState<'chat' | 'debates' | 'photos'>('chat');
 
-  // Text Chat States
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [messageInput, setMessageInput] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'rooms' | 'debates' | 'users'>('rooms');
-
-  // Debate Forums States
+  // Debate Forums States (Moved up to prevent early access)
   const [debates, setDebates] = useState<DebateTopic[]>([]);
   const [newDebateTitle, setNewDebateTitle] = useState<string>('');
   const [newDebateDesc, setNewDebateDesc] = useState<string>('');
   const [newDebateCat, setNewDebateCat] = useState<string>('Tecnología');
   const [showDebateForm, setShowDebateForm] = useState<boolean>(false);
+
+  // Load initial lobby stats & debates for the landing page before login
+  useEffect(() => {
+    if (!mounted || !userId || hasEntered) return;
+    
+    let active = true;
+    const fetchInitialData = async () => {
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            name: 'Espectador',
+            color: '#ffffff',
+            currentRoom: null,
+            isSearchingRandom: false,
+          })
+        });
+        if (response.ok && active) {
+          const data = await response.json();
+          if (data.stats) setLobbyStats(data.stats);
+          if (data.rooms) setRooms(data.rooms);
+          if (data.debates) setDebates(data.debates);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch initial cover data:', err);
+      }
+    };
+    
+    fetchInitialData();
+    const interval = setInterval(fetchInitialData, 10000);
+    
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [mounted, userId, hasEntered]);
+
+  // Text Chat States
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messageInput, setMessageInput] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'rooms' | 'debates' | 'users'>('rooms');
 
   // Audio Recording States
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -1096,104 +1135,392 @@ export default function AnonymousChatApp() {
             </button>
           </div>
 
-          {/* Right panel: Active Hologram Preview */}
-          <div className="md:col-span-5 bg-slate-950/50 border border-slate-800/80 rounded-[1.75rem] p-6 flex flex-col items-center justify-between relative overflow-hidden min-h-[320px] md:min-h-full">
+          {/* Right panel: Active Portal Content (Tabs for Chat, Debates, Photos) */}
+          <div className="md:col-span-5 bg-slate-950/50 border border-slate-800/80 rounded-[1.75rem] p-5 flex flex-col justify-between relative overflow-hidden min-h-[460px] md:min-h-full">
             {/* Hologram Projector Effect Details */}
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent animate-pulse" />
             
             {/* Grid Pattern Background */}
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0.25)_1px,transparent_1px),linear-gradient(90deg,rgba(18,24,38,0.25)_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none opacity-40" />
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(18,24,38,0.2)_1px,transparent_1px)] bg-[size:14px_14px] pointer-events-none opacity-30" />
 
             {/* Scanline overlay */}
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-indigo-500/[0.03] to-transparent bg-[size:100%_4px] pointer-events-none animate-scanline" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-indigo-500/[0.02] to-transparent bg-[size:100%_4px] pointer-events-none animate-scanline" />
 
-            <div className="w-full text-center space-y-1 z-10">
-              <span className="inline-block text-[9px] font-mono tracking-[0.25em] text-indigo-400 uppercase bg-indigo-500/5 px-2.5 py-0.5 rounded-full border border-indigo-500/10">
-                PROYECTOR HOLOGRÁFICO
-              </span>
-              <p className="text-[10px] text-slate-500 font-mono">ESTADO: ONLINE · SEÑAL ESTABLE</p>
-            </div>
-
-            {/* Hologram sphere projection container */}
-            <div className="relative my-6 flex items-center justify-center w-36 h-36 z-10">
-              {/* Spinning outer ring */}
-              <div 
-                className="absolute inset-0 rounded-full border border-dashed animate-[spin_20s_linear_infinite]"
-                style={{ borderColor: `${color || '#6366f1'}40` }}
-              />
-              <div 
-                className="absolute inset-2.5 rounded-full border border-dashed animate-[spin_10s_linear_infinite_reverse] opacity-50"
-                style={{ borderColor: `${color || '#6366f1'}20` }}
-              />
-
-              {/* Pulsing glow aura background */}
-              <div 
-                className="absolute inset-5 rounded-full opacity-20 blur-xl transition-all duration-700 animate-pulse"
-                style={{ 
-                  backgroundColor: color || '#6366f1',
-                  animationDuration: `${Math.max(500, 2000 - Number(age || 18) * 15)}ms`
+            {/* Tabs Selector Header */}
+            <div className="w-full z-10 flex border-b border-slate-900/80 p-0.5 bg-slate-900/30 rounded-xl mb-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setCoverTab('chat');
+                  playInteractionMode('select');
                 }}
-              />
-
-              {/* Radar core lines */}
-              <div 
-                className="absolute inset-5 rounded-full border transition-colors duration-500 flex items-center justify-center animate-pulse"
-                style={{ 
-                  borderColor: `${color || '#6366f1'}30`,
-                  boxShadow: `inset 0 0 15px ${color || '#6366f1'}20`
-                }}
+                className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer text-center ${
+                  coverTab === 'chat'
+                    ? 'bg-gradient-to-r from-rose-500/10 to-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-extrabold'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
               >
-                {/* Center avatar core symbol */}
-                <div 
-                  className="w-14 h-14 rounded-full flex items-center justify-center text-slate-100 transition-all duration-500"
-                  style={{ 
-                    backgroundColor: `${color || '#6366f1'}15`,
-                    boxShadow: `0 0 20px ${(color || '#6366f1')}30`,
-                    border: `1.5px solid ${color || '#6366f1'}`
-                  }}
-                >
-                  {gender === 'male' ? (
-                    <span className="text-xl font-bold select-none drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">♂</span>
-                  ) : gender === 'female' ? (
-                    <span className="text-xl font-bold select-none drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">♀</span>
-                  ) : gender === 'couple' ? (
-                    <span className="text-xl font-bold select-none drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">⚤</span>
-                  ) : gender === 'nonbinary' ? (
-                    <span className="text-xl font-bold select-none drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">⚨</span>
-                  ) : (
-                    <Cpu className="w-5 h-5 animate-pulse text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.5)]" />
-                  )}
-                </div>
-              </div>
-
-              {/* Scanner horizontal laser line */}
-              <div 
-                className="absolute left-1 right-1 h-[2px] blur-[1px] animate-scanlaser z-20"
-                style={{ backgroundColor: color || '#6366f1' }}
-              />
+                💬 Chat
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCoverTab('debates');
+                  playInteractionMode('select');
+                }}
+                className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer text-center ${
+                  coverTab === 'debates'
+                    ? 'bg-gradient-to-r from-rose-500/10 to-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-extrabold'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                🔥 Debates
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCoverTab('photos');
+                  playInteractionMode('select');
+                }}
+                className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer text-center ${
+                  coverTab === 'photos'
+                    ? 'bg-gradient-to-r from-rose-500/10 to-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-extrabold'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                🖼️ Fotos ID
+              </button>
             </div>
 
-            {/* Dynamic visual parameters readout */}
-            <div className="w-full space-y-2 z-10 text-center font-mono">
-              <div className="text-sm font-bold truncate tracking-wide text-slate-200">
-                {name || <span className="text-slate-600 italic font-normal">&lt;Sin Alias&gt;</span>}
-              </div>
-              <div className="flex items-center justify-center gap-3 text-[9px] text-slate-400">
-                <span>GEN: {gender === 'unspecified' ? 'OCULTO' : gender.toUpperCase()}</span>
-                <span className="text-slate-700">•</span>
-                <span>EDAD: {age} años</span>
-              </div>
+            {/* Main Tabs Content */}
+            <div className="flex-1 w-full flex flex-col justify-between z-10">
               
-              {/* Color Hex display code */}
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[9px] text-slate-500">
-                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color || '#6366f1' }} />
-                <span>SPEC: {color ? color.toUpperCase() : 'N/A'}</span>
-              </div>
+              {/* TAB 1: CHAT & DIRECT DIRECTORY */}
+              {coverTab === 'chat' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-4 flex flex-col justify-between h-full"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono tracking-wider text-slate-400 font-bold uppercase">SALA GLOBAL & CANALES</span>
+                      <span className="flex items-center gap-1.5 text-[10px] font-mono text-indigo-400">
+                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
+                        <span>{lobbyStats.totalOnline} ONLINE</span>
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                      {rooms.length > 0 ? (
+                        rooms.map((r) => (
+                          <div 
+                            key={r.id} 
+                            className="p-2.5 rounded-xl border border-slate-900 bg-slate-950/40 hover:bg-slate-950/80 transition-all flex items-center justify-between"
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="p-1 rounded-lg bg-indigo-500/10 text-indigo-400">
+                                {getRoomIcon(r.icon)}
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-bold text-slate-300">{r.name}</h4>
+                                <p className="text-[9px] text-slate-500 truncate max-w-[150px]">{r.description}</p>
+                              </div>
+                            </div>
+                            <span className="text-[9px] font-mono bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-md font-bold">
+                              {r.activeUsers} activos
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="p-2.5 rounded-xl border border-slate-900 bg-slate-950/40 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1 rounded-lg bg-indigo-500/10 text-indigo-400">
+                                <MessageSquare className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-bold text-slate-300">Sala General</h4>
+                                <p className="text-[9px] text-slate-500">Espacio de charla principal</p>
+                              </div>
+                            </div>
+                            <span className="text-[9px] font-mono bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-md font-bold">0 activos</span>
+                          </div>
+                          <div className="p-2.5 rounded-xl border border-slate-900 bg-slate-950/40 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1 rounded-lg bg-rose-500/10 text-rose-400">
+                                <Sparkles className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-bold text-slate-300">Citas Rápidas 💖</h4>
+                                <p className="text-[9px] text-slate-500">Citas anónimas aleatorias</p>
+                              </div>
+                            </div>
+                            <span className="text-[9px] font-mono bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded-md font-bold">0 activos</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Simulated telemetry ticker logs */}
+                  <div className="p-3 rounded-xl border border-slate-900/60 bg-slate-950/80 space-y-1.5 font-mono text-[9px] leading-relaxed">
+                    <div className="text-slate-500 uppercase tracking-widest text-[8px] font-bold border-b border-slate-900 pb-1 mb-1">REGISTRO DE CANALES EN VIVO</div>
+                    <p className="text-indigo-400/80"><span className="text-slate-600">[03:12]</span> SISTEMA: Encriptación P2P activada para videollamadas.</p>
+                    <p className="text-rose-400/80"><span className="text-slate-600">[03:14]</span> SISTEMA: {lobbyStats.searchingRandomCount} usuarios en cola de chat aleatorio.</p>
+                    <p className="text-emerald-400/80"><span className="text-slate-600">[03:15]</span> NOTIFICACIÓN: ¡Nuevas salas de debate creadas recientemente!</p>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* TAB 2: ACTIVE DEBATE FORUMS */}
+              {coverTab === 'debates' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-3 flex flex-col justify-between h-full"
+                >
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-mono tracking-wider text-slate-400 font-bold uppercase block">FOROS DE DEBATE EN CURSO</span>
+                    
+                    <div className="space-y-2.5 max-h-[290px] overflow-y-auto pr-1">
+                      {debates.length > 0 ? (
+                        debates.slice(0, 3).map((d) => (
+                          <div 
+                            key={d.id} 
+                            className="p-3 rounded-xl border border-slate-900 bg-slate-950/40 hover:bg-slate-950/80 transition-all space-y-1.5"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span 
+                                className="text-[8px] font-mono font-bold px-2 py-0.5 rounded-full uppercase"
+                                style={{ 
+                                  backgroundColor: `${d.creatorColor || '#6366f1'}15`, 
+                                  color: d.creatorColor || '#6366f1',
+                                  border: `1px solid ${d.creatorColor || '#6366f1'}30` 
+                                }}
+                              >
+                                {d.category}
+                              </span>
+                              <span className="text-[9px] font-mono text-slate-500 font-bold flex items-center gap-1">
+                                🔥 {d.votes} votos
+                              </span>
+                            </div>
+                            <h4 className="text-xs font-bold text-slate-200 line-clamp-1">{d.title}</h4>
+                            <p className="text-[10px] text-slate-400 line-clamp-2 leading-snug">{d.description}</p>
+                            <div className="text-[8px] text-slate-500 font-mono text-right">
+                              Por: <span style={{ color: d.creatorColor || '#cbd5e1' }}>{d.creatorName}</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        /* Pre-seeded awesome debate cards */
+                        <div className="space-y-2.5">
+                          <div className="p-3 rounded-xl border border-slate-900 bg-slate-950/40 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[8px] font-mono font-bold px-2 py-0.5 rounded-full uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                Filosofía
+                              </span>
+                              <span className="text-[9px] font-mono text-slate-500 font-bold flex items-center gap-1">
+                                🔥 18 votos
+                              </span>
+                            </div>
+                            <h4 className="text-xs font-bold text-slate-200">¿Es posible enamorarse en el anonimato?</h4>
+                            <p className="text-[10px] text-slate-400 leading-snug">Debatamos si conocer a alguien únicamente por voz y texto sin juzgar su apariencia genera conexiones más profundas.</p>
+                            <div className="text-[8px] text-slate-500 font-mono text-right">Por: <span className="text-indigo-400">Gato_Curioso</span></div>
+                          </div>
+
+                          <div className="p-3 rounded-xl border border-slate-900 bg-slate-950/40 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[8px] font-mono font-bold px-2 py-0.5 rounded-full uppercase bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                Relaciones
+                              </span>
+                              <span className="text-[9px] font-mono text-slate-500 font-bold flex items-center gap-1">
+                                🔥 11 votos
+                              </span>
+                            </div>
+                            <h4 className="text-xs font-bold text-slate-200">¿Las relaciones líquidas dominan las redes sociales?</h4>
+                            <p className="text-[10px] text-slate-400 leading-snug">¿Cómo afecta la efimeridad de las salas de voz virtuales a nuestro sentido de amistad y empatía actual?</p>
+                            <div className="text-[8px] text-slate-500 font-mono text-right">Por: <span className="text-rose-400">Loba_Estelar</span></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-[9px] font-mono text-slate-500 text-center uppercase">
+                    ¡Vota, debate y crea foros una vez ingresado!
+                  </p>
+                </motion.div>
+              )}
+
+              {/* TAB 3: HOLOGRAMS & DYNAMIC PHOTOS */}
+              {coverTab === 'photos' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-3 flex flex-col justify-between h-full"
+                >
+                  <div className="flex flex-col items-center justify-center">
+                    
+                    {/* Compacted Hologram Projector core */}
+                    <div className="relative flex items-center justify-center w-28 h-28 my-1">
+                      {/* Spinning outer ring */}
+                      <div 
+                        className="absolute inset-0 rounded-full border border-dashed animate-[spin_24s_linear_infinite]"
+                        style={{ borderColor: `${color || '#6366f1'}40` }}
+                      />
+                      <div 
+                        className="absolute inset-1.5 rounded-full border border-dashed animate-[spin_12s_linear_infinite_reverse] opacity-40"
+                        style={{ borderColor: `${color || '#6366f1'}20` }}
+                      />
+
+                      {/* Pulsing glow aura background */}
+                      <div 
+                        className="absolute inset-4 rounded-full opacity-20 blur-xl transition-all duration-700 animate-pulse"
+                        style={{ 
+                          backgroundColor: color || '#6366f1',
+                          animationDuration: '1.5s'
+                        }}
+                      />
+
+                      {/* Center avatar core symbol */}
+                      <div 
+                        className="absolute inset-4 rounded-full border transition-colors duration-500 flex items-center justify-center animate-pulse"
+                        style={{ 
+                          borderColor: `${color || '#6366f1'}30`,
+                          boxShadow: `inset 0 0 10px ${color || '#6366f1'}20`
+                        }}
+                      >
+                        <div 
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-slate-100 transition-all duration-500"
+                          style={{ 
+                            backgroundColor: `${color || '#6366f1'}15`,
+                            boxShadow: `0 0 15px ${(color || '#6366f1')}30`,
+                            border: `1.2px solid ${color || '#6366f1'}`
+                          }}
+                        >
+                          {gender === 'male' ? (
+                            <span className="text-sm font-bold select-none drop-shadow-[0_0_6px_rgba(255,255,255,0.5)]">♂</span>
+                          ) : gender === 'female' ? (
+                            <span className="text-sm font-bold select-none drop-shadow-[0_0_6px_rgba(255,255,255,0.5)]">♀</span>
+                          ) : gender === 'couple' ? (
+                            <span className="text-sm font-bold select-none drop-shadow-[0_0_6px_rgba(255,255,255,0.5)]">⚤</span>
+                          ) : gender === 'nonbinary' ? (
+                            <span className="text-sm font-bold select-none drop-shadow-[0_0_6px_rgba(255,255,255,0.5)]">⚨</span>
+                          ) : (
+                            <Cpu className="w-4 h-4 animate-pulse text-white drop-shadow-[0_0_4px_rgba(255,255,255,0.5)]" />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Laser scanner line */}
+                      <div 
+                        className="absolute left-1 right-1 h-[2px] blur-[1px] animate-scanlaser z-20"
+                        style={{ backgroundColor: color || '#6366f1' }}
+                      />
+                    </div>
+
+                    <div className="text-center font-mono space-y-0.5 mt-1">
+                      <h5 className="text-[11px] font-bold text-slate-200 uppercase truncate max-w-[200px]">
+                        {name || '<Sin Alias>'}
+                      </h5>
+                      <p className="text-[8px] text-slate-500">
+                        GEN: {gender === 'unspecified' ? 'OCULTO' : gender.toUpperCase()} · EDAD: {age} AÑOS
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Preset Identities (Simulated Photo Gallery selection) */}
+                  <div className="space-y-1.5 pt-1.5 border-t border-slate-900/60">
+                    <span className="text-[8px] font-mono tracking-widest text-slate-500 uppercase block text-center">
+                      CLONAR HOLOGRAMA / FOTO PRE-DISEÑADA:
+                    </span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setName('Sirena_Neón');
+                          setColor('#ec4899');
+                          setGender('female');
+                          setAge('22');
+                          setAgeConfirmed(true);
+                          playInteractionMode('color', 2);
+                        }}
+                        className="p-1.5 rounded-lg border border-slate-900 bg-slate-950/40 hover:border-pink-500/40 transition-all flex items-center gap-1.5 text-left cursor-pointer group"
+                      >
+                        <span className="w-4 h-4 rounded-full bg-pink-500 border border-white/10 flex items-center justify-center text-[8px] font-bold text-black select-none group-hover:scale-110 transition-transform">♀</span>
+                        <div className="truncate">
+                          <p className="text-[9px] font-bold text-slate-300 truncate">Sirena_Neón</p>
+                          <p className="text-[7px] text-slate-500">Mujer, 22a</p>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setName('Cazador_Delta');
+                          setColor('#3b82f6');
+                          setGender('male');
+                          setAge('25');
+                          setAgeConfirmed(true);
+                          playInteractionMode('color', 0);
+                        }}
+                        className="p-1.5 rounded-lg border border-slate-900 bg-slate-950/40 hover:border-blue-500/40 transition-all flex items-center gap-1.5 text-left cursor-pointer group"
+                      >
+                        <span className="w-4 h-4 rounded-full bg-blue-500 border border-white/10 flex items-center justify-center text-[8px] font-bold text-black select-none group-hover:scale-110 transition-transform">♂</span>
+                        <div className="truncate">
+                          <p className="text-[9px] font-bold text-slate-300 truncate">Cazador_Delta</p>
+                          <p className="text-[7px] text-slate-500">Hombre, 25a</p>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setName('Gato_Cósmico');
+                          setColor('#06b6d4');
+                          setGender('nonbinary');
+                          setAge('24');
+                          setAgeConfirmed(true);
+                          playInteractionMode('color', 1);
+                        }}
+                        className="p-1.5 rounded-lg border border-slate-900 bg-slate-950/40 hover:border-cyan-500/40 transition-all flex items-center gap-1.5 text-left cursor-pointer group"
+                      >
+                        <span className="w-4 h-4 rounded-full bg-cyan-500 border border-white/10 flex items-center justify-center text-[8px] font-bold text-black select-none group-hover:scale-110 transition-transform">⚨</span>
+                        <div className="truncate">
+                          <p className="text-[9px] font-bold text-slate-300 truncate">Gato_Cósmico</p>
+                          <p className="text-[7px] text-slate-500">No Bin, 24a</p>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setName('Pareja_Zafiro');
+                          setColor('#10b981');
+                          setGender('couple');
+                          setAge('28');
+                          setAgeConfirmed(true);
+                          playInteractionMode('color', 3);
+                        }}
+                        className="p-1.5 rounded-lg border border-slate-900 bg-slate-950/40 hover:border-emerald-500/40 transition-all flex items-center gap-1.5 text-left cursor-pointer group"
+                      >
+                        <span className="w-4 h-4 rounded-full bg-emerald-500 border border-white/10 flex items-center justify-center text-[8px] font-bold text-black select-none group-hover:scale-110 transition-transform">⚤</span>
+                        <div className="truncate">
+                          <p className="text-[9px] font-bold text-slate-300 truncate">Pareja_Zafiro</p>
+                          <p className="text-[7px] text-slate-500">Pareja, 28a</p>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
             </div>
 
-            {/* Sound testing section (Sub-option 3) */}
-            <div className="w-full pt-4 border-t border-slate-900/60 z-10 flex flex-col items-center gap-1.5">
-              <span className="text-[9px] font-mono tracking-wider text-slate-500 uppercase">Probadora de Sonido Incógnito</span>
+            {/* Sound testing section (Always available at the bottom for playful testing) */}
+            <div className="w-full pt-3.5 mt-3 border-t border-slate-900/60 z-10 flex flex-col items-center gap-1.5">
+              <span className="text-[8px] font-mono tracking-wider text-slate-500 uppercase">Probadora de Sonido Incógnito</span>
               <div className="flex gap-2">
                 <button
                   type="button"
