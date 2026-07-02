@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: var(--font-sans), system-ui, -apple-system, sans-serif;
+    --font-mono: var(--font-mono), monospace;
+  }
+}
+
+/* Custom gorgeous dark cyber scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.4);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.4);
+  border-radius: 9999px;
+  border: 1px solid rgba(15, 23, 42, 0.5);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(244, 63, 94, 0.6);
+}
+
+/* Custom CSS animations and utility classes */
+.glow-primary {
+  box-shadow: 0 0 20px rgba(244, 63, 94, 0.15);
+}
+
+.glow-indigo {
+  box-shadow: 0 0 25px rgba(99, 102, 241, 0.25);
+}
+
+.glow-emerald {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.25);
+}
+
+.backdrop-blur-cyber {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}

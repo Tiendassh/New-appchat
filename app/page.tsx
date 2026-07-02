@@ -1,0 +1,1405 @@
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  Video,
+  VideoOff,
+  Mic,
+  MicOff,
+  Phone,
+  PhoneOff,
+  MessageSquare,
+  Send,
+  RefreshCw,
+  Users,
+  Lock,
+  Music,
+  Film,
+  Cpu,
+  Compass,
+  X,
+  Check,
+  Volume2,
+  Tv,
+  Camera,
+  AlertTriangle,
+  Sparkles,
+  ChevronRight
+} from 'lucide-react';
+import { User, ChatMessage, SignalingQueueItem, RoomInfo } from '@/lib/types';
+import { STATIC_ROOMS } from '@/lib/chatStore';
+
+// Generate a client-side temporary user ID
+const generateUniqueId = () => {
+  return 'user_' + Math.random().toString(36).substring(2, 11);
+};
+
+// Name lists for fun random anonymous names
+const adjectives = [
+  'Lobo', 'Eco', 'Neón', 'Sombra', 'Susurro', 'Rayo', 'Fuego', 'Fénix', 
+  'Glaciar', 'Zorro', 'Vórtice', 'Espectro', 'Aura', 'Átomo', 'Siberiano', 
+  'Cósmico', 'Cápsula', 'Halcón', 'Pantera', 'Abismo', 'Eclipse', 'Delta'
+];
+
+const nouns = [
+  'Estelar', 'Místico', 'Furtivo', 'Cíborg', 'Galáctico', 'Cuántico', 
+  'Radiante', 'Sigiloso', 'Veloz', 'Abisal', 'Eterno', 'Astral', 
+  'Fluorescente', 'Luminoso', 'Sónico', 'Virtual', 'Magnético', 'Solar'
+];
+
+const getRandomName = () => {
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const num = Math.floor(100 + Math.random() * 900);
+  return `${adj}_${noun}_${num}`;
+};
+
+const avatarColors = [
+  '#f43f5e', // Rose
+  '#06b6d4', // Cyan
+  '#10b981', // Emerald
+  '#a855f7', // Purple
+  '#eab308', // Yellow
+  '#ff4500', // Orange-red
+];
+
+export default function AnonymousChatApp() {
+  // Session / Profile State
+  const [userId, setUserId] = useState<string>('');
+  const [hasEntered, setHasEntered] = useState<boolean>(false);
+  const [name, setName] = useState<string>('');
+  const [gender, setGender] = useState<string>('unspecified');
+  const [age, setAge] = useState<string>('18');
+  const [color, setColor] = useState<string>('#f43f5e');
+  const [ageConfirmed, setAgeConfirmed] = useState<boolean>(false);
+
+  // Layout & Lobby States
+  const [currentRoom, setCurrentRoom] = useState<string | null>('general');
+  const [isSearchingRandom, setIsSearchingRandom] = useState<boolean>(false);
+  const [lobbyStats, setLobbyStats] = useState({ totalOnline: 1, searchingRandomCount: 0 });
+  const [rooms, setRooms] = useState<(RoomInfo & { activeUsers: number })[]>([]);
+  const [roomUsers, setRoomUsers] = useState<Partial<User>[]>([]);
+
+  // Text Chat States
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messageInput, setMessageInput] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'rooms' | 'users'>('rooms');
+  
+  // WebRTC & Call States
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [peer, setPeer] = useState<{ id: string; name: string; color?: string; age?: string; gender?: string } | null>(null);
+  const [activeCall, setActiveCall] = useState<boolean>(false);
+  const [isCaller, setIsCaller] = useState<boolean>(false);
+  
+  // Call Controls
+  const [videoEnabled, setVideoEnabled] = useState<boolean>(true);
+  const [audioEnabled, setAudioEnabled] = useState<boolean>(true);
+  const [incomingCallRequest, setIncomingCallRequest] = useState<{ fromId: string; fromName: string } | null>(null);
+  const [callRejectedNotification, setCallRejectedNotification] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  // Call Text Chat Overlay
+  const [callMessages, setCallMessages] = useState<{ sender: string; color: string; text: string }[]>([]);
+  const [callMessageInput, setCallMessageInput] = useState<string>('');
+
+  // Refs for tracking connections & video rendering
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const outgoingSignalsRef = useRef<any[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Initialize client UUID and random initial name
+  useEffect(() => {
+    setUserId(generateUniqueId());
+    setName(getRandomName());
+    setColor(avatarColors[Math.floor(Math.random() * avatarColors.length)]);
+  }, []);
+
+  // Scroll to bottom helper for public chat
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Clean up WebRTC resources on unmount
+  useEffect(() => {
+    return () => {
+      stopAllMedia();
+      if (userId) {
+        fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, action: 'disconnect' }),
+          keepalive: true,
+        }).catch(err => console.error('Disconnect failed', err));
+      }
+    };
+  }, [userId]);
+
+  // Handle HTML media streaming attachment when state changes
+  useEffect(() => {
+    if (localStream && localVideoRef.current) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream, activeCall]);
+
+  useEffect(() => {
+    if (remoteStream && remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream, activeCall]);
+
+  // --- WEBRTC CORE FUNCTIONS ---
+
+  const stopAllMedia = () => {
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      setLocalStream(null);
+    }
+    setRemoteStream(null);
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+  };
+
+  // Turn local camera/mic on and retrieve stream
+  const getMediaStream = async (retryAudioOnly = false): Promise<MediaStream | null> => {
+    try {
+      setCameraError(null);
+      const constraints = retryAudioOnly 
+        ? { audio: true, video: false }
+        : { audio: true, video: { width: 640, height: 480, facingMode: 'user' } };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      setLocalStream(stream);
+      setVideoEnabled(!retryAudioOnly);
+      setAudioEnabled(true);
+      return stream;
+    } catch (err: any) {
+      console.warn("Camera media retrieval failed, attempting audio-only fallback:", err);
+      if (!retryAudioOnly) {
+        return getMediaStream(true);
+      }
+      setCameraError("No se pudo acceder a la cámara ni al micrófono. Asegúrate de otorgar permisos.");
+      return null;
+    }
+  };
+
+  // Initialize a new RTCPeerConnection and bind callbacks
+  const createPeerConnection = (targetPeerId: string, currentLocalStream: MediaStream) => {
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
+      ]
+    });
+
+    // Attach local stream tracks to WebRTC connection
+    currentLocalStream.getTracks().forEach(track => {
+      pc.addTrack(track, currentLocalStream);
+    });
+
+    // Handle incoming remote media tracks
+    pc.ontrack = (event) => {
+      console.log('WebRTC: Remote track received', event.streams);
+      if (event.streams && event.streams[0]) {
+        setRemoteStream(event.streams[0]);
+      }
+    };
+
+    // Gather and send ICE Candidates to target peer via server signaling queue
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        console.log('WebRTC: Generated ICE candidate');
+        outgoingSignalsRef.current.push({
+          from: userId,
+          to: targetPeerId,
+          type: 'candidate',
+          payload: event.candidate
+        });
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log('WebRTC: Connection state updated to', pc.connectionState);
+      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+        handleHangup(false);
+      }
+    };
+
+    peerConnectionRef.current = pc;
+    return pc;
+  };
+
+  // Trigger outbound call signaling
+  const initiateCall = async (targetId: string, targetName: string) => {
+    const stream = await getMediaStream();
+    if (!stream) return;
+
+    setPeer({ id: targetId, name: targetName });
+    setIsCaller(true);
+    setActiveCall(true);
+    setIsSearchingRandom(false);
+
+    // Create RTCPeerConnection
+    const pc = createPeerConnection(targetId, stream);
+
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      
+      // Dispatch Offer signal
+      outgoingSignalsRef.current.push({
+        from: userId,
+        to: targetId,
+        type: 'offer',
+        payload: offer
+      });
+      console.log('WebRTC: Offer initialized and sent to', targetId);
+    } catch (e) {
+      console.error('WebRTC: Failed to initiate call offer', e);
+    }
+  };
+
+  // Answer an incoming call request
+  const acceptIncomingCall = async (callerId: string, callerName: string, offerSdp: any) => {
+    setIncomingCallRequest(null);
+    const stream = await getMediaStream();
+    if (!stream) {
+      // Reject if we fail to get media
+      outgoingSignalsRef.current.push({
+        from: userId,
+        to: callerId,
+        type: 'hangup',
+        payload: { reason: 'media-access-denied' }
+      });
+      return;
+    }
+
+    setPeer({ id: callerId, name: callerName });
+    setIsCaller(false);
+    setActiveCall(true);
+    setIsSearchingRandom(false);
+
+    const pc = createPeerConnection(callerId, stream);
+
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription(offerSdp));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      // Dispatch Answer signal
+      outgoingSignalsRef.current.push({
+        from: userId,
+        to: callerId,
+        type: 'answer',
+        payload: answer
+      });
+      console.log('WebRTC: Answer created and dispatched');
+    } catch (e) {
+      console.error('WebRTC: Failed to accept call offer', e);
+    }
+  };
+
+  // Toggle local Audio track
+  const toggleMute = () => {
+    if (localStream) {
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        setAudioEnabled(audioTrack.enabled);
+      }
+    }
+  };
+
+  // Toggle local Video track
+  const toggleVideo = () => {
+    if (localStream) {
+      const videoTrack = localStream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        setVideoEnabled(videoTrack.enabled);
+      }
+    }
+  };
+
+  // Hangup active session
+  const handleHangup = (notifyPeer = true) => {
+    console.log('WebRTC: Hanging up call');
+    if (notifyPeer && peer) {
+      outgoingSignalsRef.current.push({
+        from: userId,
+        to: peer.id,
+        type: 'hangup',
+        payload: { reason: 'user-hungup' }
+      });
+    }
+
+    stopAllMedia();
+    setPeer(null);
+    setActiveCall(false);
+    setCallMessages([]);
+    setIsSearchingRandom(false);
+  };
+
+  // --- MAIN POLL LOOP FOR HEARTBEAT & SIGNALING ---
+
+  useEffect(() => {
+    if (!hasEntered || !userId) return;
+
+    let isPolling = true;
+    let pendingMessage: string | null = null;
+
+    const poll = async () => {
+      if (!isPolling) return;
+
+      const signalsToSend = [...outgoingSignalsRef.current];
+      outgoingSignalsRef.current = []; // Reset queue
+
+      const msgToSend = pendingMessage;
+      pendingMessage = null; // Clear trigger
+
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            name,
+            color,
+            gender,
+            age,
+            currentRoom: isSearchingRandom ? null : currentRoom,
+            isSearchingRandom,
+            sendMessage: msgToSend || undefined,
+            outgoingSignals: signalsToSend
+          })
+        });
+
+        if (!response.ok) throw new Error('API request failed');
+        const data = await response.json();
+
+        if (!isPolling) return;
+
+        // Sync system metrics
+        if (data.stats) {
+          setLobbyStats(data.stats);
+        }
+        if (data.rooms) {
+          setRooms(data.rooms);
+        }
+        if (data.roomUsers) {
+          setRoomUsers(data.roomUsers);
+        }
+        if (data.messages && !isSearchingRandom) {
+          setMessages(data.messages);
+        }
+
+        // Process incoming signaling array
+        if (data.signals && data.signals.length > 0) {
+          for (const sig of data.signals) {
+            console.log('Signaling received:', sig.type, sig);
+
+            switch (sig.type) {
+              case 'matched':
+                // Random chat matched event
+                console.log('Signaling: Match confirmed with', sig.payload.peer.name);
+                const matchedPeer = sig.payload.peer;
+                const matchCaller = sig.payload.isCaller;
+
+                // Stop any other media first
+                stopAllMedia();
+
+                // Instantly notify local UI state
+                setPeer(matchedPeer);
+                setIsCaller(matchCaller);
+                setActiveCall(true);
+                setIsSearchingRandom(false);
+
+                // Initialize camera stream and trigger RTC connection
+                const matchStream = await getMediaStream();
+                if (matchStream) {
+                  const pc = createPeerConnection(matchedPeer.id, matchStream);
+                  if (matchCaller) {
+                    try {
+                      const offer = await pc.createOffer();
+                      await pc.setLocalDescription(offer);
+                      outgoingSignalsRef.current.push({
+                        from: userId,
+                        to: matchedPeer.id,
+                        type: 'offer',
+                        payload: offer
+                      });
+                    } catch (err) {
+                      console.error('WebRTC: Failed to initiate random match offer', err);
+                    }
+                  }
+                }
+                break;
+
+              case 'offer':
+                // Incoming WebRTC Offer
+                await acceptIncomingCall(sig.from, sig.fromName, sig.payload);
+                break;
+
+              case 'answer':
+                // WebRTC Answer
+                if (peerConnectionRef.current) {
+                  await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(sig.payload));
+                  console.log('WebRTC: Remote description set from Answer');
+                }
+                break;
+
+              case 'candidate':
+                // ICE Candidate
+                if (peerConnectionRef.current) {
+                  try {
+                    await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(sig.payload));
+                    console.log('WebRTC: Added ICE Candidate');
+                  } catch (e) {
+                    console.error('WebRTC: Candidate attachment error', e);
+                  }
+                }
+                break;
+
+              case 'hangup':
+                // Remote Hung Up
+                console.log('Signaling: Remote user terminated connection');
+                handleHangup(false);
+                if (sig.payload?.reason === 'media-access-denied') {
+                  setCallRejectedNotification("La llamada finalizó porque el par no tiene acceso a cámara/micrófono.");
+                } else {
+                  setCallRejectedNotification(`${sig.fromName} abandonó la llamada.`);
+                }
+                setTimeout(() => setCallRejectedNotification(null), 4000);
+                break;
+
+              case 'call-request':
+                // Invite to direct call in room
+                if (activeCall) {
+                  // Auto-reject if already busy in call
+                  outgoingSignalsRef.current.push({
+                    from: userId,
+                    to: sig.from,
+                    type: 'call-response',
+                    payload: { accepted: false, reason: 'busy' }
+                  });
+                } else {
+                  setIncomingCallRequest({ fromId: sig.from, fromName: sig.fromName });
+                }
+                break;
+
+              case 'call-response':
+                // direct call invitation response
+                if (sig.payload.accepted) {
+                  // If accepted, initiate WebRTC offer immediately
+                  initiateCall(sig.from, sig.fromName);
+                } else {
+                  setCallRejectedNotification(`${sig.fromName} rechazó tu llamada.`);
+                  setTimeout(() => setCallRejectedNotification(null), 4000);
+                }
+                break;
+            }
+          }
+        }
+
+      } catch (err) {
+        console.error('Lobby polling error:', err);
+      }
+
+      // Schedule next poll interval (1500ms)
+      setTimeout(poll, 1500);
+    };
+
+    // Begin loop
+    poll();
+
+    return () => {
+      isPolling = false;
+    };
+  }, [hasEntered, currentRoom, isSearchingRandom]);
+
+  // Handle direct text message dispatch to room
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageInput.trim()) return;
+
+    const textToSend = messageInput.trim();
+    setMessageInput('');
+
+    // Send on the next poll cycle instantly
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        currentRoom,
+        sendMessage: textToSend,
+        isSearchingRandom: false
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.messages) setMessages(data.messages);
+    })
+    .catch(err => console.error('Immediate dispatch failed', err));
+  };
+
+  // Direct room-to-room navigation
+  const joinRoom = (roomId: string) => {
+    setIsSearchingRandom(false);
+    setCurrentRoom(roomId);
+    setMessages([]);
+  };
+
+  // Trigger matchmaking
+  const startRandomMatch = () => {
+    stopAllMedia();
+    setPeer(null);
+    setActiveCall(false);
+    setIsSearchingRandom(true);
+    setCurrentRoom(null);
+  };
+
+  // Stop matchmaking
+  const cancelRandomMatch = () => {
+    setIsSearchingRandom(false);
+    setCurrentRoom('general');
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        action: 'leave-random',
+        isSearchingRandom: false,
+        currentRoom: 'general'
+      })
+    }).catch(err => console.error('Cancel match endpoint error', err));
+  };
+
+  // Handle room user Direct Call Invite
+  const requestDirectCall = (targetId: string, targetName: string) => {
+    if (targetId === userId) return;
+    setCallRejectedNotification(`Llamando a ${targetName}...`);
+    outgoingSignalsRef.current.push({
+      from: userId,
+      fromName: name,
+      to: targetId,
+      type: 'call-request',
+      payload: {}
+    });
+  };
+
+  // Format timestamp helper
+  const formatTime = (ts: number) => {
+    const d = new Date(ts);
+    return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
+  // Render Login Layout
+  if (!hasEntered) {
+    return (
+      <div className="min-height-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-radial from-slate-900 to-slate-950 relative overflow-hidden" id="login-screen">
+        {/* Background Glowing Decors */}
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-rose-500/10 blur-[100px] pointer-events-none" />
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="max-w-md w-full space-y-8 bg-slate-900/60 backdrop-blur-cyber border border-slate-800 p-8 rounded-3xl glow-primary"
+        >
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-tr from-rose-500 to-indigo-500 text-white mb-4 shadow-lg shadow-indigo-500/20">
+              <Sparkles className="w-8 h-8 animate-pulse" />
+            </div>
+            <h2 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-rose-400 via-pink-500 to-indigo-400 bg-clip-text text-transparent">
+              Incognito Chat
+            </h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Salas de Voz, Video y Chat 100% Anónimo
+            </p>
+          </div>
+
+          {/* Guidelines Box */}
+          <div className="p-4 bg-slate-950/50 border border-slate-800 rounded-2xl text-xs space-y-2 text-slate-400 leading-relaxed">
+            <div className="flex items-center gap-1.5 font-semibold text-rose-400 mb-1">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>Espacio Privado Anónimo:</span>
+            </div>
+            <p>• Los mensajes no se guardan en ninguna base de datos ni historial.</p>
+            <p>• Tu sesión es efímera: al recargar, tu historial desaparece para siempre.</p>
+            <p>• Conexión directa P2P (Peer-to-Peer) segura para transmisiones de voz y video.</p>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                Tu Alias Anónimo
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  maxLength={25}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-3 px-4 pl-4 pr-12 text-slate-100 font-medium placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  placeholder="Ej. Lobo_Cósmico"
+                />
+                <button
+                  type="button"
+                  onClick={() => setName(getRandomName())}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-400 transition-colors p-1"
+                  title="Generar otro alias"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Custom Avatar Color Accent */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                Color de tu Holograma
+              </label>
+              <div className="flex gap-3 justify-center">
+                {avatarColors.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setColor(c)}
+                    className="w-8 h-8 rounded-full border-2 transition-transform duration-200 cursor-pointer relative"
+                    style={{ 
+                      backgroundColor: c, 
+                      borderColor: color === c ? '#ffffff' : 'transparent',
+                      transform: color === c ? 'scale(1.15)' : 'scale(1)'
+                    }}
+                  >
+                    {color === c && (
+                      <Check className="w-4 h-4 text-slate-950 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 stroke-[3]" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sex / Age */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Género
+                </label>
+                <select
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-3 px-4 text-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                >
+                  <option value="unspecified">Prefiero ocultar</option>
+                  <option value="male">Hombre ♂</option>
+                  <option value="female">Mujer ♀</option>
+                  <option value="couple">Pareja ⚤</option>
+                  <option value="nonbinary">No Binario ⚨</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Edad
+                </label>
+                <input
+                  type="number"
+                  min="18"
+                  max="99"
+                  value={age}
+                  onChange={(e) => setAge(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-3 px-4 text-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Age disclaimer verification */}
+            <div className="flex items-start gap-3 pt-2">
+              <input
+                type="checkbox"
+                id="age-check"
+                checked={ageConfirmed}
+                onChange={(e) => setAgeConfirmed(e.target.checked)}
+                className="w-4 h-4 mt-1 accent-rose-500 rounded border-slate-800 bg-slate-950 text-rose-500 focus:ring-offset-slate-900 focus:ring-rose-500"
+              />
+              <label htmlFor="age-check" className="text-xs text-slate-400 leading-normal cursor-pointer select-none">
+                Confirmo que soy <span className="text-rose-400 font-semibold">mayor de 18 años (+18)</span> y acepto mantener interacciones respetuosas.
+              </label>
+            </div>
+
+            <button
+              type="button"
+              disabled={!ageConfirmed || !name.trim()}
+              onClick={() => setHasEntered(true)}
+              className="w-full bg-gradient-to-r from-rose-500 to-indigo-600 text-white font-bold py-3.5 px-4 rounded-2xl cursor-pointer hover:shadow-lg hover:shadow-indigo-500/20 focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase text-sm tracking-wider"
+            >
+              Iniciar Chat Incógnito
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Helper to render static icon representing rooms
+  const getRoomIcon = (iconName: string) => {
+    switch (iconName) {
+      case 'Lock': return <Lock className="w-5 h-5 text-indigo-400" />;
+      case 'Music': return <Music className="w-5 h-5 text-indigo-400" />;
+      case 'Film': return <Film className="w-5 h-5 text-indigo-400" />;
+      case 'Cpu': return <Cpu className="w-5 h-5 text-indigo-400" />;
+      default: return <MessageSquare className="w-5 h-5 text-indigo-400" />;
+    }
+  };
+
+  const getGenderLabel = (g?: string) => {
+    if (!g) return '';
+    switch (g) {
+      case 'male': return 'Hombre ♂';
+      case 'female': return 'Mujer ♀';
+      case 'couple': return 'Pareja ⚤';
+      case 'nonbinary': return 'No Binario ⚨';
+      default: return 'Anónimo';
+    }
+  };
+
+  // Render Main Layout Dashboard
+  return (
+    <div className="h-screen w-screen flex flex-col bg-slate-950 font-sans select-none overflow-hidden text-slate-200">
+      
+      {/* Top Navigation Bar */}
+      <header className="h-14 border-b border-slate-900 bg-slate-950/90 backdrop-blur-cyber flex items-center justify-between px-4 sm:px-6 z-30">
+        <div className="flex items-center gap-2">
+          <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+          <h1 className="text-lg font-extrabold bg-gradient-to-r from-rose-400 via-pink-500 to-indigo-400 bg-clip-text text-transparent tracking-tight">
+            Incognito Chat
+          </h1>
+          <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 px-2 py-0.5 border border-slate-800 rounded-full bg-slate-900 ml-1.5">
+            Lobby Live
+          </span>
+        </div>
+
+        {/* Global Stats & Personal profile badge */}
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-4 text-xs text-slate-400 font-medium">
+            <span className="flex items-center gap-1">
+              <Users className="w-3.5 h-3.5 text-indigo-400" />
+              En línea: <strong className="text-slate-200">{lobbyStats.totalOnline}</strong>
+            </span>
+            {lobbyStats.searchingRandomCount > 0 && (
+              <span className="flex items-center gap-1 text-rose-400 animate-pulse">
+                <Compass className="w-3.5 h-3.5" />
+                Buscando Match: <strong>{lobbyStats.searchingRandomCount}</strong>
+              </span>
+            )}
+          </div>
+
+          {/* User profile card */}
+          <div className="flex items-center gap-2 border border-slate-800/80 bg-slate-900/50 py-1.5 px-3.5 rounded-2xl">
+            <div 
+              className="w-3.5 h-3.5 rounded-full ring-2 ring-offset-2 ring-offset-slate-950 shadow" 
+              style={{ backgroundColor: color, '--tw-ring-color': color } as React.CSSProperties} 
+            />
+            <span className="text-xs font-bold tracking-tight text-slate-200">{name}</span>
+            <span className="text-[9px] text-slate-400 border border-slate-800/60 rounded px-1 text-slate-500">{age} años</span>
+          </div>
+
+          <button
+            onClick={() => {
+              stopAllMedia();
+              // Notify server of departure
+              fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, action: 'disconnect' })
+              }).catch(err => console.error(err));
+              setHasEntered(false);
+            }}
+            className="text-xs text-rose-400 font-semibold border border-rose-900/40 hover:bg-rose-950/20 py-1.5 px-3 rounded-2xl transition-colors cursor-pointer"
+          >
+            Salir
+          </button>
+        </div>
+      </header>
+
+      {/* Main Container Workspace */}
+      <div className="flex-1 flex overflow-hidden relative">
+
+        {/* --- INCOMING CALL POPUP --- */}
+        <AnimatePresence>
+          {incomingCallRequest && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 50 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 50 }}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] bg-slate-900/95 border border-indigo-500/30 p-6 rounded-3xl glow-indigo z-50 backdrop-blur-xl"
+            >
+              <div className="text-center space-y-4">
+                <div className="w-16 h-16 mx-auto rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400 animate-bounce">
+                  <Video className="w-8 h-8" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-100">Llamada Entrante</h3>
+                  <p className="text-sm text-slate-400 mt-1">
+                    <span className="text-indigo-400 font-semibold">{incomingCallRequest.fromName}</span> te está invitando a un chat de voz y video privado.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      // Accept invite
+                      outgoingSignalsRef.current.push({
+                        from: userId,
+                        to: incomingCallRequest.fromId,
+                        type: 'call-response',
+                        payload: { accepted: true }
+                      });
+                      // Set up and connect WebRTC on next heartbeat
+                      setIncomingCallRequest(null);
+                      setCallRejectedNotification("Conectando videollamada...");
+                      setTimeout(() => setCallRejectedNotification(null), 3000);
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl cursor-pointer transition-colors"
+                  >
+                    Aceptar
+                  </button>
+                  <button
+                    onClick={() => {
+                      // Reject invite
+                      outgoingSignalsRef.current.push({
+                        from: userId,
+                        to: incomingCallRequest.fromId,
+                        type: 'call-response',
+                        payload: { accepted: false }
+                      });
+                      setIncomingCallRequest(null);
+                    }}
+                    className="bg-slate-800 hover:bg-slate-700 text-rose-400 border border-slate-700 font-bold py-2.5 px-4 rounded-xl cursor-pointer transition-colors"
+                  >
+                    Rechazar
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* --- REJECTED/SYSTEM NOTIFICATION TOAST --- */}
+        <AnimatePresence>
+          {callRejectedNotification && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 border border-rose-500/20 px-5 py-3 rounded-full text-xs font-semibold text-rose-400 shadow-xl z-50 flex items-center gap-2"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 animate-pulse" />
+              <span>{callRejectedNotification}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 1. LEFT SIDEBAR (Controls & Rooms Listing) */}
+        <aside className="w-80 border-r border-slate-900 bg-slate-950/80 hidden md:flex flex-col z-20 shrink-0">
+          
+          {/* Match Random Call To Action Box */}
+          <div className="p-4 border-b border-slate-900">
+            <button
+              onClick={startRandomMatch}
+              className={`w-full bg-gradient-to-tr from-rose-500 via-pink-600 to-indigo-600 hover:scale-[1.02] text-white font-bold py-3.5 px-4 rounded-2xl cursor-pointer flex items-center justify-center gap-2.5 transition-all text-xs tracking-wider uppercase glow-primary ${
+                isSearchingRandom ? 'ring-2 ring-rose-500 ring-offset-2 ring-offset-slate-950' : ''
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-yellow-300 animate-spin" style={{ animationDuration: '4s' }} />
+              Video Chat Rápido (1-a-1)
+            </button>
+          </div>
+
+          {/* Tab Selector (Rooms vs Active People in Room) */}
+          <div className="flex border-b border-slate-900 px-2 text-xs">
+            <button
+              onClick={() => setActiveTab('rooms')}
+              className={`flex-1 py-3 text-center font-bold border-b-2 cursor-pointer transition-colors ${
+                activeTab === 'rooms' 
+                  ? 'border-indigo-500 text-indigo-400' 
+                  : 'border-transparent text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              Salas Temáticas
+            </button>
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`flex-1 py-3 text-center font-bold border-b-2 cursor-pointer transition-colors relative ${
+                activeTab === 'users' 
+                  ? 'border-indigo-500 text-indigo-400' 
+                  : 'border-transparent text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              Gente en Sala
+              {roomUsers.length > 0 && (
+                <span className="absolute top-1/2 right-3 -translate-y-1/2 bg-indigo-500/10 text-indigo-400 text-[10px] px-1.5 py-0.5 rounded-full">
+                  {roomUsers.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Sidebar Content (Scrollable list based on active tab) */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            
+            {activeTab === 'rooms' ? (
+              // Tab A: STATIC ROOM LISTINGS
+              <div className="space-y-2">
+                {rooms.map((room) => (
+                  <button
+                    key={room.id}
+                    onClick={() => joinRoom(room.id)}
+                    className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-start gap-3 cursor-pointer ${
+                      currentRoom === room.id
+                        ? 'bg-indigo-600/10 border-indigo-500/30 glow-indigo'
+                        : 'bg-slate-900/30 border-transparent hover:bg-slate-900/50 hover:border-slate-800/80'
+                    }`}
+                  >
+                    <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 shrink-0">
+                      {getRoomIcon(room.icon)}
+                    </div>
+                    <div className="space-y-1 overflow-hidden">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-extrabold text-xs text-slate-200 block truncate">
+                          {room.name}
+                        </span>
+                        <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-md">
+                          {room.activeUsers} live
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-snug line-clamp-2">
+                        {room.description}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              // Tab B: USERS ONLINE IN CURRENT ROOM
+              <div className="space-y-1.5">
+                <div className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider mb-2 px-1">
+                  Click para llamar por voz/video
+                </div>
+                {roomUsers.length <= 1 ? (
+                  <div className="text-center py-8 text-slate-500 text-xs">
+                    No hay otros usuarios en esta sala.
+                  </div>
+                ) : (
+                  roomUsers.map((u) => {
+                    if (u.id === userId) return null;
+                    return (
+                      <button
+                        key={u.id}
+                        onClick={() => u.id && u.name && requestDirectCall(u.id, u.name)}
+                        className="w-full text-left p-2.5 bg-slate-900/20 border border-slate-900 hover:border-indigo-500/30 hover:bg-indigo-500/5 rounded-xl transition-all flex items-center justify-between gap-3 group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <div 
+                            className="w-2 h-2 rounded-full ring-2 ring-offset-1 ring-offset-slate-950" 
+                            style={{ backgroundColor: u.color, '--tw-ring-color': u.color } as React.CSSProperties} 
+                          />
+                          <span className="text-xs font-bold text-slate-300 truncate group-hover:text-indigo-400">
+                            {u.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[8px] text-slate-500 bg-slate-900 border border-slate-800 px-1 py-0.5 rounded">
+                            {getGenderLabel(u.gender)}
+                          </span>
+                          <Video className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-400 transition-colors shrink-0 ml-1" />
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* 2. MAIN CENTER FEED AREA (Transitions based on state) */}
+        <main className="flex-1 flex flex-col bg-slate-950 relative overflow-hidden">
+          
+          <AnimatePresence mode="wait">
+            
+            {/* STATE 1: ACTIVE VOICE & VIDEO CALL OVERLAY SCREEN */}
+            {activeCall && peer ? (
+              <motion.div
+                key="active-call"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-slate-950 z-40 flex flex-col md:flex-row"
+              >
+                {/* Left Side: Cameras Stage container */}
+                <div className="flex-1 flex flex-col relative bg-slate-900/40 p-4">
+                  
+                  {/* Call details overlay */}
+                  <div className="absolute top-6 left-6 z-10 flex items-center gap-3 bg-slate-950/80 border border-slate-800 backdrop-blur px-4 py-2.5 rounded-2xl">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-100">Llamada en Vivo</h4>
+                      <p className="text-[10px] text-slate-400">Conectado con <span className="font-bold" style={{ color: peer.color || '#f43f5e' }}>{peer.name}</span></p>
+                    </div>
+                  </div>
+
+                  {/* Remote video container (takes full background space) */}
+                  <div className="flex-1 w-full rounded-3xl overflow-hidden bg-slate-950 border border-slate-900 relative flex items-center justify-center">
+                    
+                    {remoteStream ? (
+                      <video
+                        ref={remoteVideoRef}
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      // If no video track yet, show a clean loading overlay
+                      <div className="text-center space-y-4">
+                        <div className="w-24 h-24 rounded-full mx-auto bg-indigo-500/10 flex items-center justify-center text-indigo-400 animate-pulse ring-4 ring-indigo-500/20">
+                          <Users className="w-10 h-10" />
+                        </div>
+                        <p className="text-sm font-semibold text-slate-300">Conectando canales de streaming...</p>
+                        <p className="text-xs text-slate-500">Espera que la conexión P2P se complete.</p>
+                      </div>
+                    )}
+
+                    {/* Local PIP Video (small preview pinned at the bottom-right corner) */}
+                    <div className="absolute bottom-6 right-6 w-32 sm:w-44 aspect-video rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl z-20">
+                      {localStream ? (
+                        <video
+                          ref={localVideoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-slate-900 text-[10px] text-slate-500">
+                          Sin Video
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Call Media Controls Deck */}
+                  <div className="h-20 flex items-center justify-center gap-4 mt-4">
+                    {/* Camera switch */}
+                    <button
+                      onClick={toggleVideo}
+                      className={`p-3.5 rounded-2xl transition-all cursor-pointer border ${
+                        videoEnabled 
+                          ? 'bg-slate-900 border-slate-800 text-slate-100 hover:bg-slate-800' 
+                          : 'bg-rose-500/10 border-rose-500/30 text-rose-500 hover:bg-rose-500/20'
+                      }`}
+                      title={videoEnabled ? 'Apagar Cámara' : 'Encender Cámara'}
+                    >
+                      {videoEnabled ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+                    </button>
+
+                    {/* Mic mute switch */}
+                    <button
+                      onClick={toggleMute}
+                      className={`p-3.5 rounded-2xl transition-all cursor-pointer border ${
+                        audioEnabled 
+                          ? 'bg-slate-900 border-slate-800 text-slate-100 hover:bg-slate-800' 
+                          : 'bg-rose-500/10 border-rose-500/30 text-rose-500 hover:bg-rose-500/20'
+                      }`}
+                      title={audioEnabled ? 'Silenciar Micrófono' : 'Activar Micrófono'}
+                    >
+                      {audioEnabled ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+                    </button>
+
+                    {/* Hang up call */}
+                    <button
+                      onClick={() => handleHangup(true)}
+                      className="bg-rose-600 hover:bg-rose-700 hover:scale-[1.05] p-3.5 rounded-2xl text-white transition-all cursor-pointer glow-primary border border-rose-500/30"
+                      title="Finalizar Llamada"
+                    >
+                      <PhoneOff className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Right Side Call Chat (Text communication during the active call) */}
+                <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-900 bg-slate-950/80 flex flex-col shrink-0 h-48 md:h-full">
+                  <div className="p-3 border-b border-slate-900 text-xs font-bold text-slate-400">
+                    Mensajes Directos de Llamada
+                  </div>
+                  {/* Since WebRTC call represents transient connection, text overlay acts locally or direct data stream.
+                      Let's offer a temporary private conversation overlay. */}
+                  <div className="flex-1 p-3 overflow-y-auto space-y-2 text-xs">
+                    <div className="text-slate-500 italic text-[10px] text-center p-2 bg-slate-900/20 rounded">
+                      Mensajes efímeros, nunca guardados.
+                    </div>
+                    {callMessages.length === 0 ? (
+                      <div className="text-slate-500 text-center py-10">Envía un mensaje privado al par.</div>
+                    ) : (
+                      callMessages.map((cm, i) => (
+                        <div key={i} className="space-y-0.5 leading-snug">
+                          <span className="font-extrabold" style={{ color: cm.color }}>{cm.sender}: </span>
+                          <span className="text-slate-300">{cm.text}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <form 
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!callMessageInput.trim()) return;
+                      const msg = { sender: name, color, text: callMessageInput.trim() };
+                      setCallMessages(prev => [...prev, msg]);
+                      
+                      // Deliver message by embedding into outbox signaling queue
+                      outgoingSignalsRef.current.push({
+                        from: userId,
+                        to: peer.id,
+                        type: 'message-call-text', // Custom non-webrtc payload used during peer stream
+                        payload: msg
+                      });
+                      setCallMessageInput('');
+                    }}
+                    className="p-2 border-t border-slate-900 flex gap-2"
+                  >
+                    <input
+                      type="text"
+                      placeholder="Escribe en privado..."
+                      value={callMessageInput}
+                      onChange={(e) => setCallMessageInput(e.target.value)}
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-100"
+                    />
+                    <button type="submit" className="p-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-white cursor-pointer shrink-0">
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
+                  </form>
+                </div>
+              </motion.div>
+            ) : isSearchingRandom ? (
+              
+              // STATE 2: RANDOM MATCHMAKING RADAR
+              <motion.div
+                key="searching-radar"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                className="flex-1 flex flex-col items-center justify-center p-8 text-center"
+              >
+                <div className="relative w-48 h-48 mb-8 flex items-center justify-center">
+                  
+                  {/* Glowing pulses */}
+                  <motion.div
+                    animate={{ scale: [1, 1.8], opacity: [0.6, 0] }}
+                    transition={{ repeat: Infinity, duration: 2.5, ease: 'easeOut' }}
+                    className="absolute inset-0 rounded-full border border-rose-500/30"
+                  />
+                  <motion.div
+                    animate={{ scale: [1, 2.4], opacity: [0.4, 0] }}
+                    transition={{ repeat: Infinity, duration: 3.5, ease: 'easeOut', delay: 1 }}
+                    className="absolute inset-0 rounded-full border border-indigo-500/20"
+                  />
+
+                  {/* Core Spinning Radar line */}
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 4, ease: 'linear' }}
+                    className="absolute inset-2 rounded-full border border-dashed border-indigo-500/40"
+                  />
+
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-rose-500 to-indigo-500 flex items-center justify-center shadow-2xl text-white shadow-indigo-500/20 z-10">
+                    <Compass className="w-10 h-10 animate-spin" style={{ animationDuration: '6s' }} />
+                  </div>
+                </div>
+
+                <div className="max-w-xs space-y-2">
+                  <h3 className="text-lg font-extrabold text-slate-100 tracking-tight">
+                    Buscando Pareja Anónima
+                  </h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Buscando en la nube otro usuario disponible para conectarse de forma privada con video y voz.
+                  </p>
+                  
+                  {lobbyStats.searchingRandomCount > 0 && (
+                    <div className="text-[10px] text-indigo-400 font-bold bg-indigo-500/5 border border-indigo-500/10 py-1.5 px-3 rounded-full mt-2 inline-block">
+                      {lobbyStats.searchingRandomCount} personas buscando activamente
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={cancelRandomMatch}
+                  className="mt-8 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold py-2.5 px-8 rounded-2xl cursor-pointer text-xs uppercase tracking-wider transition-all"
+                >
+                  Cancelar Búsqueda
+                </button>
+              </motion.div>
+
+            ) : (
+
+              // STATE 3: GROUP ROOM TEXT CONVERSATION FEED
+              <motion.div
+                key="room-chat"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex-1 flex flex-col h-full overflow-hidden"
+              >
+                {/* Active Room Title Banner */}
+                {currentRoom && (
+                  <div className="p-4 border-b border-slate-900 bg-slate-950/60 backdrop-blur flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                        {STATIC_ROOMS.find(r => r.id === currentRoom)?.icon && getRoomIcon(STATIC_ROOMS.find(r => r.id === currentRoom)!.icon)}
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-extrabold text-slate-100">
+                          {STATIC_ROOMS.find(r => r.id === currentRoom)?.name}
+                        </h2>
+                        <p className="text-[10px] text-slate-400 line-clamp-1">
+                          {STATIC_ROOMS.find(r => r.id === currentRoom)?.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Small mobile rooms listing icon toggle to switch channels if sidebar is missing */}
+                    <div className="md:hidden flex items-center gap-2">
+                      <button
+                        onClick={startRandomMatch}
+                        className="bg-gradient-to-r from-rose-500 to-indigo-600 text-white font-bold text-[10px] uppercase py-1.5 px-3.5 rounded-full"
+                      >
+                        Match 1-a-1
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Messages Scrolling Grid */}
+                <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+                  {/* No messages indicator */}
+                  {messages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center space-y-3 py-12">
+                      <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500">
+                        <MessageSquare className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-400">El historial está vacío</p>
+                        <p className="text-[10px] text-slate-600 max-w-xs mt-1">
+                          Sé el primero en saludar de forma anónima. Recuerda que al salir o recargar la página, todo se borra.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    messages.map((msg) => {
+                      const isMe = msg.senderId === userId;
+                      return (
+                        <div
+                          key={msg.id}
+                          className={`flex items-start gap-2.5 max-w-[85%] md:max-w-[70%] ${
+                            isMe ? 'ml-auto flex-row-reverse' : 'mr-auto'
+                          }`}
+                        >
+                          {/* Colored dot representation */}
+                          <div
+                            className="w-7 h-7 rounded-full shrink-0 border border-slate-800/80 flex items-center justify-center text-[10px] font-bold text-slate-900 select-none shadow"
+                            style={{ backgroundColor: msg.senderColor }}
+                          >
+                            {msg.senderName.substring(0, 1).toUpperCase()}
+                          </div>
+
+                          <div className="space-y-1">
+                            {/* Metadata */}
+                            <div className={`flex items-center gap-2 text-[10px] ${isMe ? 'justify-end' : ''}`}>
+                              <button
+                                onClick={() => !isMe && requestDirectCall(msg.senderId, msg.senderName)}
+                                className="font-bold text-slate-300 hover:text-indigo-400 transition-colors cursor-pointer text-left"
+                                style={{ color: isMe ? '#94a3b8' : msg.senderColor }}
+                                title={isMe ? '' : `Llamar por voz/video a ${msg.senderName}`}
+                              >
+                                {msg.senderName} {isMe ? '(Tú)' : '📞'}
+                              </button>
+                              <span className="text-slate-600 font-mono">
+                                {formatTime(msg.timestamp)}
+                              </span>
+                            </div>
+
+                            {/* Message text body */}
+                            <div
+                              className={`p-3.5 rounded-2xl text-xs leading-relaxed break-words shadow-sm ${
+                                isMe
+                                  ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-none border border-indigo-500/20'
+                                  : 'bg-slate-900/60 text-slate-200 border border-slate-800/80 rounded-tl-none'
+                              }`}
+                            >
+                              {msg.text}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                {/* Mobile rooms switcher scrollable strip (only visible on mobile screens) */}
+                <div className="md:hidden flex gap-2 overflow-x-auto px-4 py-2 border-t border-slate-900 bg-slate-950 shrink-0">
+                  {STATIC_ROOMS.map(r => (
+                    <button
+                      key={r.id}
+                      onClick={() => joinRoom(r.id)}
+                      className={`text-[10px] font-bold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 border ${
+                        currentRoom === r.id 
+                          ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400' 
+                          : 'bg-slate-900 border-transparent text-slate-400'
+                      }`}
+                    >
+                      {r.name}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Dispatch Input Box form */}
+                <form
+                  onSubmit={handleSendMessage}
+                  className="p-4 border-t border-slate-900 bg-slate-950/80 backdrop-blur flex gap-3 shrink-0"
+                >
+                  <input
+                    type="text"
+                    maxLength={1000}
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    className="flex-1 bg-slate-900/60 border border-slate-800 rounded-2xl py-3 px-4 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-xs"
+                    placeholder={`Escribe un mensaje anónimo en ${STATIC_ROOMS.find(r => r.id === currentRoom)?.name || 'esta sala'}...`}
+                  />
+                  <button
+                    type="submit"
+                    className="p-3 bg-indigo-600 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] rounded-2xl text-white font-bold transition-all shrink-0 shadow-lg shadow-indigo-500/10 cursor-pointer flex items-center justify-center aspect-square"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </form>
+
+              </motion.div>
+
+            )}
+
+          </AnimatePresence>
+
+        </main>
+      </div>
+
+    </div>
+  );
+}
