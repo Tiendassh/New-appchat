@@ -26,7 +26,8 @@ import {
   Camera,
   AlertTriangle,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  ScreenShare
 } from 'lucide-react';
 import { User, ChatMessage, SignalingQueueItem, RoomInfo, DebateTopic } from '@/lib/types';
 import { STATIC_ROOMS } from '@/lib/chatStore';
@@ -338,6 +339,7 @@ export default function AnonymousChatApp() {
   const [incomingCallRequest, setIncomingCallRequest] = useState<{ fromId: string; fromName: string } | null>(null);
   const [callRejectedNotification, setCallRejectedNotification] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isScreenSharing, setIsScreenSharing] = useState<boolean>(false);
 
   // Call Text Chat Overlay
   const [callMessages, setCallMessages] = useState<{ sender: string; color: string; text: string }[]>([]);
@@ -347,12 +349,19 @@ export default function AnonymousChatApp() {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
   const outgoingSignalsRef = useRef<any[]>([]);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   // --- WEBRTC CORE FUNCTIONS (Declared first to avoid early access errors) ---
 
   const stopAllMedia = React.useCallback(() => {
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach(track => track.stop());
+      screenStreamRef.current = null;
+    }
+    setIsScreenSharing(false);
+
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
       setLocalStream(null);
@@ -556,6 +565,74 @@ export default function AnonymousChatApp() {
         videoTrack.enabled = !videoTrack.enabled;
         setVideoEnabled(videoTrack.enabled);
       }
+    }
+  };
+
+  // Screen Sharing Functions
+  const startScreenShare = async () => {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        alert("La compartición de pantalla no está soportada en este navegador.");
+        return;
+      }
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      screenStreamRef.current = stream;
+      setIsScreenSharing(true);
+
+      const screenTrack = stream.getVideoTracks()[0];
+
+      // Replace local video preview with screen sharing stream
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+
+      // Replace video track in the active WebRTC peer connection
+      if (peerConnectionRef.current) {
+        const senders = peerConnectionRef.current.getSenders();
+        const videoSender = senders.find(s => s.track?.kind === 'video');
+        if (videoSender) {
+          await videoSender.replaceTrack(screenTrack);
+        }
+      }
+
+      // Revert to camera stream when the user stops sharing via the native browser UI
+      screenTrack.onended = () => {
+        stopScreenShare();
+      };
+    } catch (err) {
+      console.error("Error al iniciar compartición de pantalla:", err);
+      setIsScreenSharing(false);
+    }
+  };
+
+  const stopScreenShare = async () => {
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach(track => track.stop());
+      screenStreamRef.current = null;
+    }
+    setIsScreenSharing(false);
+
+    // Restore local camera video track preview
+    if (localStream && localVideoRef.current) {
+      localVideoRef.current.srcObject = localStream;
+      const cameraTrack = localStream.getVideoTracks()[0];
+      
+      // Replace video track in active WebRTC peer connection
+      if (peerConnectionRef.current && cameraTrack) {
+        const senders = peerConnectionRef.current.getSenders();
+        const videoSender = senders.find(s => s.track?.kind === 'video');
+        if (videoSender) {
+          await videoSender.replaceTrack(cameraTrack);
+        }
+      }
+    }
+  };
+
+  const toggleScreenShare = () => {
+    if (isScreenSharing) {
+      stopScreenShare();
+    } else {
+      startScreenShare();
     }
   };
 
@@ -2179,6 +2256,19 @@ export default function AnonymousChatApp() {
                       title={videoEnabled ? 'Apagar Cámara' : 'Encender Cámara'}
                     >
                       {videoEnabled ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+                    </button>
+
+                    {/* Screen Share switch */}
+                    <button
+                      onClick={toggleScreenShare}
+                      className={`p-3.5 rounded-2xl transition-all cursor-pointer border ${
+                        isScreenSharing 
+                          ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25' 
+                          : 'bg-slate-900 border-slate-800 text-slate-100 hover:bg-slate-800'
+                      }`}
+                      title={isScreenSharing ? 'Detener Compartir Pantalla' : 'Compartir Pantalla'}
+                    >
+                      <ScreenShare className="w-5 h-5" />
                     </button>
 
                     {/* Mic mute switch */}
