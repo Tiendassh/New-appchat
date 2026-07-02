@@ -65,16 +65,26 @@ const avatarColors = [
 ];
 
 export default function AnonymousChatApp() {
+  const [mounted, setMounted] = useState<boolean>(false);
+
   // Session / Profile State
-  const [userId] = useState<string>(() => {
-    return 'user_' + Math.random().toString(36).substring(2, 11);
-  });
+  const [userId, setUserId] = useState<string>('');
   const [hasEntered, setHasEntered] = useState<boolean>(false);
-  const [name, setName] = useState<string>(() => getRandomName());
+  const [name, setName] = useState<string>('');
   const [gender, setGender] = useState<string>('unspecified');
   const [age, setAge] = useState<string>('18');
-  const [color, setColor] = useState<string>(() => avatarColors[Math.floor(Math.random() * avatarColors.length)]);
+  const [color, setColor] = useState<string>('');
   const [ageConfirmed, setAgeConfirmed] = useState<boolean>(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMounted(true);
+      setUserId('user_' + Math.random().toString(36).substring(2, 11));
+      setName(getRandomName());
+      setColor(avatarColors[Math.floor(Math.random() * avatarColors.length)]);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Layout & Lobby States
   const [currentRoom, setCurrentRoom] = useState<string | null>('general');
@@ -745,6 +755,18 @@ export default function AnonymousChatApp() {
     const d = new Date(ts);
     return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
+
+  // Render loading screen if client-side hydration hasn't completed yet
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center font-sans">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-slate-400 text-xs font-mono">Iniciando Anonymous Chat...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Render Login Layout
   if (!hasEntered) {
