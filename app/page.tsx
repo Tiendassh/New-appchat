@@ -690,6 +690,16 @@ export default function AnonymousChatApp() {
         });
 
         if (!response.ok) throw new Error('API request failed');
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          console.warn('Lobby polling: Received non-JSON response from server, retrying...');
+          if (isPolling) {
+            setTimeout(poll, 1500);
+          }
+          return;
+        }
+
         const data = await response.json();
 
         if (!isPolling) return;
@@ -841,8 +851,15 @@ export default function AnonymousChatApp() {
 
       } catch (err: any) {
         // Log network failures gracefully, as they are expected during HMR/server reloads
-        if (err instanceof TypeError || (err.message && err.message.includes('Failed to fetch'))) {
-          console.warn('Lobby polling: Conexión temporalmente no disponible o recargando...');
+        const isTransient = err instanceof TypeError || 
+          (err.message && (
+            err.message.includes('Failed to fetch') || 
+            err.message.includes('JSON') || 
+            err.message.includes('Unexpected token') ||
+            err.message.includes('is not valid JSON')
+          ));
+        if (isTransient) {
+          console.warn('Lobby polling: Conexión temporalmente no disponible o recargando...', err.message);
         } else {
           console.error('Lobby polling error:', err);
         }
@@ -881,11 +898,17 @@ export default function AnonymousChatApp() {
         isSearchingRandom: false
       })
     })
-    .then(res => res.json())
+    .then(res => {
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
+        return res.json();
+      }
+      throw new Error('Immediate dispatch non-JSON or error response');
+    })
     .then(data => {
       if (data.messages) setMessages(data.messages);
     })
-    .catch(err => console.error('Immediate dispatch failed', err));
+    .catch(err => console.warn('Immediate dispatch failed gracefully', err));
   };
 
   // Dispatch recorded voice note as Base64 to room
@@ -900,11 +923,17 @@ export default function AnonymousChatApp() {
         isSearchingRandom: false
       })
     })
-    .then(res => res.json())
+    .then(res => {
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
+        return res.json();
+      }
+      throw new Error('Audio note dispatch non-JSON or error response');
+    })
     .then(data => {
       if (data.messages) setMessages(data.messages);
     })
-    .catch(err => console.error('Audio note dispatch failed', err));
+    .catch(err => console.warn('Audio note dispatch failed gracefully', err));
   };
 
   // Create a new Debate Topic
@@ -919,7 +948,13 @@ export default function AnonymousChatApp() {
         isSearchingRandom: false
       })
     })
-    .then(res => res.json())
+    .then(res => {
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
+        return res.json();
+      }
+      throw new Error('Create debate non-JSON or error response');
+    })
     .then(data => {
       if (data.debates) setDebates(data.debates);
       // Let's find the new debate we just created to enter it
@@ -928,7 +963,7 @@ export default function AnonymousChatApp() {
         joinRoom(createdDebate.id);
       }
     })
-    .catch(err => console.error('Create debate failed', err));
+    .catch(err => console.warn('Create debate failed gracefully', err));
   };
 
   // Upvote or retract vote on a debate topic
@@ -943,11 +978,17 @@ export default function AnonymousChatApp() {
         isSearchingRandom: false
       })
     })
-    .then(res => res.json())
+    .then(res => {
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
+        return res.json();
+      }
+      throw new Error('Vote non-JSON or error response');
+    })
     .then(data => {
       if (data.debates) setDebates(data.debates);
     })
-    .catch(err => console.error('Vote action failed', err));
+    .catch(err => console.warn('Vote action failed gracefully', err));
   };
 
   // Browser MediaRecorder voice capture start
@@ -1045,7 +1086,7 @@ export default function AnonymousChatApp() {
         isSearchingRandom: false,
         currentRoom: 'general'
       })
-    }).catch(err => console.error('Cancel match endpoint error', err));
+    }).catch(err => console.warn('Cancel match endpoint error gracefully', err));
   };
 
   // Handle room user Direct Call Invite
