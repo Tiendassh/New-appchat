@@ -1,4 +1,4 @@
-import { User, ChatMessage, SignalingQueueItem, RoomInfo, DebateTopic } from './types';
+import { User, ChatMessage, SignalingQueueItem, RoomInfo, DebateTopic, ConfessionStory } from './types';
 
 export const STATIC_ROOMS: RoomInfo[] = [
   {
@@ -43,6 +43,7 @@ interface GlobalChatStore {
   roomMessages: Map<string, ChatMessage[]>;
   signalingQueues: Map<string, SignalingQueueItem[]>;
   debates: DebateTopic[];
+  stories: ConfessionStory[];
 }
 
 // Ensure the store is persistent in Next.js development HMR reloads
@@ -92,6 +93,82 @@ export const chatStore: GlobalChatStore = globalForChat.chatStore ?? {
       votedBy: []
     }
   ],
+  stories: [
+    {
+      id: 's1',
+      title: 'Le confesé a mi mejor amiga que me gustaba por videollamada',
+      content: 'Llevábamos 3 años siendo mejores amigos de la universidad. El fin de semana pasado, jugando a verdad o reto por llamada, me armé de valor y se lo solté. Hubo un silencio de 10 segundos eternos que casi me da un infarto, pero luego sonrió y me dijo que sentía exactamente lo mismo. ¡Ayer tuvimos nuestra primera cita oficial!',
+      category: 'Amor/Desamor',
+      creatorId: 'user_crush',
+      creatorName: 'Romántico_Anónimo',
+      creatorColor: '#ec4899',
+      timestamp: Date.now() - 3600000 * 2,
+      votes: 15,
+      votedBy: [],
+      comments: [
+        {
+          id: 'sc1',
+          content: '¡Qué gran historia de éxito! Qué envidia, yo me declaré y me dejaron en visto jaja.',
+          creatorId: 'user_commenter1',
+          creatorName: 'Soldado_Caído',
+          creatorColor: '#3b82f6',
+          timestamp: Date.now() - 3600000 * 1.5
+        },
+        {
+          id: 'sc2',
+          content: '¡Felicidades! Esas son las llamadas que cambian vidas de verdad.',
+          creatorId: 'user_commenter2',
+          creatorName: 'Espectador_Feliz',
+          creatorColor: '#10b981',
+          timestamp: Date.now() - 3600000 * 1
+        }
+      ]
+    },
+    {
+      id: 's2',
+      title: 'Escuché susurros extraños mientras probaba un filtro de cámara a las 3 AM',
+      content: 'Estaba desvelado probando unos efectos de luz de la webcam en mi habitación a oscuras. De repente, el filtro detector de rostros dibujó un marco en una esquina vacía detrás de mí y escuché un susurro cortísimo en los auriculares que decía "mírame". Apagué la PC de inmediato y dormí con la luz encendida. No bromeo, sigo asustado.',
+      category: 'Paranormal',
+      creatorId: 'user_spooky',
+      creatorName: 'Sombra_Veloz',
+      creatorColor: '#a855f7',
+      timestamp: Date.now() - 3600000 * 6,
+      votes: 24,
+      votedBy: [],
+      comments: [
+        {
+          id: 'sc3',
+          content: 'No juegues con eso... a las 3 AM el velo del más allá es muy delgado.',
+          creatorId: 'user_skeptic',
+          creatorName: 'Cazafantasmas_88',
+          creatorColor: '#f59e0b',
+          timestamp: Date.now() - 3600000 * 4
+        }
+      ]
+    },
+    {
+      id: 's3',
+      title: 'Mi mayor secreto: Me comí el pastel de bodas de mi jefe y culpé al perro de la oficina',
+      content: 'Trabajo en una agencia pequeña de marketing. Trajeron un pastel hermoso para celebrar el aniversario de bodas de mi jefe. Quedaba una porción gigante en la nevera de noche y como me quedé haciendo horas extra, me la comí completa. Al día siguiente, cuando preguntaron, dije que vi a "Roco" (el Golden Retriever de soporte técnico que siempre anda libre) rondando la nevera. Lo castigaron sin premios toda la semana. Me siento horrible pero estaba delicioso.',
+      category: 'Humor',
+      creatorId: 'user_glutton',
+      creatorName: 'Goloso_Furtivo',
+      creatorColor: '#e11d48',
+      timestamp: Date.now() - 3600000 * 24,
+      votes: 38,
+      votedBy: [],
+      comments: [
+        {
+          id: 'sc4',
+          content: '¡Pobre Roco! Cómprale unas galletas de premio de forma anónima para compensar jajaja.',
+          creatorId: 'user_doglover',
+          creatorName: 'Roco_Defensa_Civil',
+          creatorColor: '#14b8a6',
+          timestamp: Date.now() - 3600000 * 18
+        }
+      ]
+    }
+  ]
 };
 
 // Always bind to globalThis to ensure a single shared singleton across all Next.js server chunks/endpoints

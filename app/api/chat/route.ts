@@ -282,6 +282,64 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Handle story / confession creation
+    const createStory = body.createStory;
+    if (createStory) {
+      const storyId = 'story_' + generateId();
+      const newStory = {
+        id: storyId,
+        title: createStory.title,
+        content: createStory.content,
+        category: createStory.category || 'General',
+        creatorId: userId,
+        creatorName: user.name,
+        creatorColor: user.color,
+        timestamp: now,
+        votes: 1,
+        votedBy: [userId],
+        comments: []
+      };
+      chatStore.stories = chatStore.stories || [];
+      chatStore.stories.unshift(newStory);
+    }
+
+    // Handle story voting / liking
+    const voteStoryId = body.voteStoryId;
+    if (voteStoryId && chatStore.stories) {
+      const story = chatStore.stories.find(s => s.id === voteStoryId);
+      if (story) {
+        if (!story.votedBy) {
+          story.votedBy = [];
+        }
+        if (story.votedBy.includes(userId)) {
+          story.votedBy = story.votedBy.filter(id => id !== userId);
+          story.votes = Math.max(0, story.votes - 1);
+        } else {
+          story.votedBy.push(userId);
+          story.votes += 1;
+        }
+      }
+    }
+
+    // Handle story commenting
+    const commentStory = body.commentStory;
+    if (commentStory && chatStore.stories) {
+      const story = chatStore.stories.find(s => s.id === commentStory.storyId);
+      if (story && commentStory.content?.trim()) {
+        const commentId = 'comment_' + generateId();
+        const newComment = {
+          id: commentId,
+          content: commentStory.content.trim(),
+          creatorId: userId,
+          creatorName: user.name,
+          creatorColor: user.color,
+          timestamp: now
+        };
+        story.comments = story.comments || [];
+        story.comments.push(newComment);
+      }
+    }
+
     // 5. QUEUE OUTGOING WEBRTC SIGNALS
     if (outgoingSignals && outgoingSignals.length > 0) {
       outgoingSignals.forEach(sig => {
@@ -439,6 +497,7 @@ export async function POST(req: NextRequest) {
       signals: mySignals,
       rooms: roomsWithCount,
       debates: chatStore.debates || [],
+      stories: chatStore.stories || [],
       stats: {
         totalOnline,
         searchingRandomCount: Array.from(chatStore.users.values()).filter(u => u.isSearchingRandom).length

@@ -31,7 +31,7 @@ import {
   Heart,
   CreditCard
 } from 'lucide-react';
-import { User, ChatMessage, SignalingQueueItem, RoomInfo, DebateTopic } from '@/lib/types';
+import { User, ChatMessage, SignalingQueueItem, RoomInfo, DebateTopic, ConfessionStory } from '@/lib/types';
 import { STATIC_ROOMS } from '@/lib/chatStore';
 
 // Generate a client-side temporary user ID
@@ -126,7 +126,7 @@ export default function AnonymousChatApp() {
   const [lobbyStats, setLobbyStats] = useState({ totalOnline: 1, searchingRandomCount: 0 });
   const [rooms, setRooms] = useState<(RoomInfo & { activeUsers: number })[]>([]);
   const [roomUsers, setRoomUsers] = useState<Partial<User>[]>([]);
-  const [coverTab, setCoverTab] = useState<'chat' | 'debates' | 'photos' | 'match' | 'shows'>('chat');
+  const [coverTab, setCoverTab] = useState<'chat' | 'debates' | 'photos' | 'match' | 'shows' | 'relatos'>('chat');
 
   // Debate Forums States (Moved up to prevent early access)
   const [debates, setDebates] = useState<DebateTopic[]>([]);
@@ -134,6 +134,15 @@ export default function AnonymousChatApp() {
   const [newDebateDesc, setNewDebateDesc] = useState<string>('');
   const [newDebateCat, setNewDebateCat] = useState<string>('Tecnología');
   const [showDebateForm, setShowDebateForm] = useState<boolean>(false);
+
+  // Stories & Confessions States
+  const [stories, setStories] = useState<ConfessionStory[]>([]);
+  const [newStoryTitle, setNewStoryTitle] = useState<string>('');
+  const [newStoryContent, setNewStoryContent] = useState<string>('');
+  const [newStoryCat, setNewStoryCat] = useState<string>('Secreto');
+  const [showStoryForm, setShowStoryForm] = useState<boolean>(false);
+  const [expandedStoryId, setExpandedStoryId] = useState<string | null>(null);
+  const [newCommentContent, setNewCommentContent] = useState<string>('');
 
   // Load initial lobby stats & debates for the landing page before login
   useEffect(() => {
@@ -158,6 +167,7 @@ export default function AnonymousChatApp() {
           if (data.stats) setLobbyStats(data.stats);
           if (data.rooms) setRooms(data.rooms);
           if (data.debates) setDebates(data.debates);
+          if (data.stories) setStories(data.stories);
         }
       } catch (err) {
         console.warn('Failed to fetch initial cover data:', err);
@@ -833,6 +843,9 @@ export default function AnonymousChatApp() {
         if (data.debates) {
           setDebates(data.debates);
         }
+        if (data.stories) {
+          setStories(data.stories);
+        }
 
         // Process incoming signaling array
         if (data.signals && data.signals.length > 0) {
@@ -1082,6 +1095,88 @@ export default function AnonymousChatApp() {
       if (data.debates) setDebates(data.debates);
     })
     .catch(err => console.warn('Vote action failed gracefully', err));
+  };
+
+  // Create a new Story / Confession
+  const handleCreateStory = (title: string, content: string, category: string) => {
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        currentRoom,
+        createStory: { title, content, category },
+        isSearchingRandom: false
+      })
+    })
+    .then(res => {
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
+        return res.json();
+      }
+      throw new Error('Create story non-JSON or error response');
+    })
+    .then(data => {
+      if (data.stories) setStories(data.stories);
+      // Reset inputs
+      setNewStoryTitle('');
+      setNewStoryContent('');
+      setNewStoryCat('Secreto');
+      setShowStoryForm(false);
+    })
+    .catch(err => console.warn('Create story failed gracefully', err));
+  };
+
+  // Upvote or retract vote on a story
+  const handleVoteStory = (storyId: string) => {
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        currentRoom,
+        voteStoryId: storyId,
+        isSearchingRandom: false
+      })
+    })
+    .then(res => {
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
+        return res.json();
+      }
+      throw new Error('Vote story non-JSON or error response');
+    })
+    .then(data => {
+      if (data.stories) setStories(data.stories);
+    })
+    .catch(err => console.warn('Vote story failed gracefully', err));
+  };
+
+  // Add a comment to a story
+  const handleCommentStory = (storyId: string, content: string) => {
+    if (!content.trim()) return;
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        currentRoom,
+        commentStory: { storyId, content },
+        isSearchingRandom: false
+      })
+    })
+    .then(res => {
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
+        return res.json();
+      }
+      throw new Error('Comment story non-JSON or error response');
+    })
+    .then(data => {
+      if (data.stories) setStories(data.stories);
+      setNewCommentContent('');
+    })
+    .catch(err => console.warn('Comment story failed gracefully', err));
   };
 
   // Browser MediaRecorder voice capture start
@@ -1523,6 +1618,20 @@ export default function AnonymousChatApp() {
                 }`}
               >
                 ✨ Shows
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCoverTab('relatos');
+                  playInteractionMode('select');
+                }}
+                className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer text-center ${
+                  coverTab === 'relatos'
+                    ? 'bg-gradient-to-r from-rose-500/10 to-indigo-500/10 border border-indigo-500/20 text-pink-400 font-extrabold'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                🔒 Relatos
               </button>
             </div>
 
@@ -1969,6 +2078,245 @@ export default function AnonymousChatApp() {
                         Inicia sesión para descubrir y participar en <strong className="text-fuchsia-400">Shows en vivo</strong> de la comunidad. Puedes ser espectador, enviar reacciones, o iniciar tu propio show público.
                       </p>
                     </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* TAB 6: RELATOS Y CONFESIONES */}
+              {coverTab === 'relatos' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-4 flex flex-col justify-between h-full"
+                >
+                  <div className="space-y-3 flex-1 flex flex-col min-h-0">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-xs font-extrabold text-pink-400 tracking-wider uppercase font-mono">
+                          📖 Relatos & Confesiones
+                        </h4>
+                        <p className="text-[9px] text-slate-500 leading-normal">
+                          Secretos, desahogos y vivencias 100% anónimas de la comunidad.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowStoryForm(!showStoryForm);
+                          playInteractionMode('click');
+                        }}
+                        className="px-2.5 py-1 text-[9px] font-bold bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 border border-pink-500/20 rounded-xl cursor-pointer transition-all flex items-center gap-1"
+                      >
+                        {showStoryForm ? 'Ver Relatos 📖' : 'Confesarse ✍️'}
+                      </button>
+                    </div>
+
+                    {showStoryForm ? (
+                      /* WRITE STORY FORM */
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-slate-950/60 border border-slate-900 rounded-xl p-3 space-y-2.5 overflow-y-auto max-h-[280px]"
+                      >
+                        <div>
+                          <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase mb-1">Título de tu confesión</label>
+                          <input
+                            type="text"
+                            placeholder="Ej: Vi a mi jefe en el supermercado con..."
+                            value={newStoryTitle}
+                            onChange={(e) => setNewStoryTitle(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-900 rounded-lg p-2 text-slate-200 text-xs placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-pink-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase mb-1">Categoría</label>
+                          <select
+                            value={newStoryCat}
+                            onChange={(e) => setNewStoryCat(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-900 rounded-lg p-2 text-slate-300 text-xs focus:outline-none focus:ring-1 focus:ring-pink-500"
+                          >
+                            <option value="Secreto">🤫 Secreto Oscuro</option>
+                            <option value="Amor/Desamor">💔 Amor / Desamor</option>
+                            <option value="Paranormal">👻 Paranormal / Extraño</option>
+                            <option value="Humor">😂 Humor / Anécdota graciosa</option>
+                            <option value="Fantasía">✨ Fantasía / Pensamiento</option>
+                            <option value="Otro">💬 Otro relato</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase mb-1">Tu confesión o historia</label>
+                          <textarea
+                            placeholder="Desahógate de forma totalmente anónima aquí..."
+                            rows={3}
+                            value={newStoryContent}
+                            onChange={(e) => setNewStoryContent(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-900 rounded-lg p-2 text-slate-200 text-xs placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-pink-500 resize-none"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={!newStoryTitle.trim() || !newStoryContent.trim()}
+                          onClick={() => {
+                            handleCreateStory(newStoryTitle, newStoryContent, newStoryCat);
+                            playInteractionMode('click');
+                          }}
+                          className="w-full bg-pink-600 hover:bg-pink-500 disabled:opacity-40 text-white font-bold py-1.5 px-3 rounded-lg text-xs cursor-pointer transition-all uppercase tracking-wider"
+                        >
+                          Publicar Anónimamente 🤫
+                        </button>
+                      </motion.div>
+                    ) : (
+                      /* STORIES LIST */
+                      <div className="space-y-2.5 overflow-y-auto pr-1 flex-1 max-h-[290px]">
+                        {stories.length === 0 ? (
+                          <div className="text-center py-12 text-slate-600">
+                            <span className="block text-2xl mb-1">🤫</span>
+                            <span className="text-[10px] uppercase font-mono">No hay historias publicadas aún. ¡Sé el primero!</span>
+                          </div>
+                        ) : (
+                          stories.map((story) => {
+                            const isExpanded = expandedStoryId === story.id;
+                            const hasVoted = story.votedBy?.includes(userId);
+                            
+                            // Determine category styling
+                            let catBg = "bg-slate-900 text-slate-400";
+                            if (story.category === "Amor/Desamor") catBg = "bg-pink-500/10 text-pink-400 border border-pink-500/20";
+                            else if (story.category === "Paranormal") catBg = "bg-purple-500/10 text-purple-400 border border-purple-500/20";
+                            else if (story.category === "Humor") catBg = "bg-amber-500/10 text-amber-400 border border-amber-500/20";
+                            else if (story.category === "Secreto") catBg = "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20";
+                            else if (story.category === "Fantasía") catBg = "bg-fuchsia-500/10 text-fuchsia-400 border border-fuchsia-500/20";
+
+                            return (
+                              <div
+                                key={story.id}
+                                className="p-3 rounded-xl border border-slate-900 bg-slate-950/40 hover:bg-slate-950/80 transition-all space-y-2 text-left"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className={`text-[8px] font-mono uppercase px-1.5 py-0.5 rounded-md font-bold ${catBg}`}>
+                                    {story.category}
+                                  </span>
+                                  <span className="text-[8px] text-slate-500 font-mono">
+                                    {new Date(story.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+
+                                <h5 
+                                  onClick={() => {
+                                    setExpandedStoryId(isExpanded ? null : story.id);
+                                    playInteractionMode('select');
+                                  }}
+                                  className="text-[11px] font-extrabold text-slate-200 cursor-pointer hover:text-pink-400 transition-colors leading-snug"
+                                >
+                                  {story.title}
+                                </h5>
+
+                                <p className={`text-[10px] text-slate-400 leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
+                                  {story.content}
+                                </p>
+
+                                <div className="flex items-center justify-between pt-1 border-t border-slate-900/40 text-[9px]">
+                                  <div className="flex items-center gap-1.5 text-[9px]">
+                                    <div 
+                                      className="w-2.5 h-2.5 rounded-full shrink-0" 
+                                      style={{ backgroundColor: story.creatorColor || '#ffffff' }}
+                                    />
+                                    <span className="text-slate-500 font-mono font-medium">{story.creatorName}</span>
+                                  </div>
+
+                                  <div className="flex items-center gap-3">
+                                    {/* Like Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        handleVoteStory(story.id);
+                                        playInteractionMode('click');
+                                      }}
+                                      className={`flex items-center gap-1 font-bold font-mono transition-colors cursor-pointer ${
+                                        hasVoted ? 'text-rose-500' : 'text-slate-500 hover:text-slate-400'
+                                      }`}
+                                    >
+                                      <Heart className={`w-3 h-3 ${hasVoted ? 'fill-rose-500 text-rose-500' : ''}`} />
+                                      <span>{story.votes || 0}</span>
+                                    </button>
+
+                                    {/* Comments Count Toggle */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setExpandedStoryId(isExpanded ? null : story.id);
+                                        playInteractionMode('select');
+                                      }}
+                                      className="flex items-center gap-1 font-mono text-slate-500 hover:text-slate-400 cursor-pointer"
+                                    >
+                                      <MessageSquare className="w-3 h-3" />
+                                      <span>{story.comments?.length || 0}</span>
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Comments Expanded Area */}
+                                {isExpanded && (
+                                  <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    className="pt-2.5 mt-2.5 border-t border-slate-900 space-y-2"
+                                  >
+                                    <div className="text-[8px] font-mono uppercase tracking-wider text-slate-500 font-bold">Comentarios de la confesión:</div>
+                                    
+                                    <div className="space-y-2 max-h-[120px] overflow-y-auto pr-1">
+                                      {(!story.comments || story.comments.length === 0) ? (
+                                        <div className="text-center py-3 text-[9px] text-slate-600 font-mono italic">No hay comentarios aún. Deja tu opinión respetuosa.</div>
+                                      ) : (
+                                        story.comments.map((comm) => (
+                                          <div key={comm.id} className="bg-slate-950 p-1.5 rounded-lg border border-slate-900/60 text-left space-y-0.5">
+                                            <div className="flex items-center justify-between text-[8px]">
+                                              <span className="font-bold font-mono" style={{ color: comm.creatorColor }}>{comm.creatorName}</span>
+                                              <span className="text-slate-600 font-mono">{new Date(comm.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            </div>
+                                            <p className="text-[9px] text-slate-300 leading-normal">{comm.content}</p>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+
+                                    {/* New Comment Input */}
+                                    <div className="flex gap-1 pt-1.5">
+                                      <input
+                                        type="text"
+                                        placeholder="Escribe un comentario anónimo..."
+                                        value={newCommentContent}
+                                        onChange={(e) => setNewCommentContent(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            handleCommentStory(story.id, newCommentContent);
+                                            playInteractionMode('click');
+                                          }
+                                        }}
+                                        className="flex-1 bg-slate-950 border border-slate-900 rounded-lg p-1.5 text-slate-300 text-[10px] placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-pink-500"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleCommentStory(story.id, newCommentContent);
+                                          playInteractionMode('click');
+                                        }}
+                                        className="px-2.5 py-1 bg-pink-600 hover:bg-pink-500 text-white font-bold rounded-lg text-[9px] cursor-pointer transition-all shrink-0"
+                                      >
+                                        Comentar
+                                      </button>
+                                    </div>
+                                  </motion.div>
+                                )}
+
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               )}
