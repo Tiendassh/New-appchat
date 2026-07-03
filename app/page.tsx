@@ -2826,7 +2826,7 @@ export default function AnonymousChatApp() {
               // Tab A: STATIC ROOM LISTINGS
               <div className="space-y-2">
                 {rooms.map((room) => (
-                  <button
+                  <div
                     key={room.id}
                     onClick={() => joinRoom(room.id)}
                     className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-start gap-3 cursor-pointer ${
@@ -2864,7 +2864,7 @@ export default function AnonymousChatApp() {
                         {room.description}
                       </p>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             ) : activeTab === 'debates' ? (
