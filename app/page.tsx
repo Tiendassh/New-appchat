@@ -335,7 +335,7 @@ export default function AnonymousChatApp() {
   // Text Chat States
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'rooms' | 'debates' | 'users'>('rooms');
+  const [activeTab, setActiveTab] = useState<'rooms' | 'debates' | 'users' | 'calls'>('rooms');
 
   // Audio Recording States
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -2803,6 +2803,17 @@ export default function AnonymousChatApp() {
               Debates
             </button>
             <button
+              onClick={() => setActiveTab('calls')}
+              className={`flex-1 py-3 text-center font-bold border-b-2 cursor-pointer transition-colors relative ${
+                activeTab === 'calls' 
+                  ? 'border-rose-500 text-rose-400' 
+                  : 'border-transparent text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              Llamadas
+              <span className="absolute top-1.5 right-1 w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+            </button>
+            <button
               onClick={() => setActiveTab('users')}
               className={`flex-1 py-3 text-center font-bold border-b-2 cursor-pointer transition-colors relative ${
                 activeTab === 'users' 
@@ -2812,7 +2823,7 @@ export default function AnonymousChatApp() {
             >
               Gente
               {roomUsers.length > 0 && (
-                <span className="absolute top-1.5 right-1.5 bg-indigo-500/10 text-indigo-400 text-[8px] px-1.5 py-0.5 rounded-full">
+                <span className="absolute top-1.5 right-1 bg-indigo-500/10 text-indigo-400 text-[8px] px-1 py-0.5 rounded-full">
                   {roomUsers.length}
                 </span>
               )}
@@ -3013,8 +3024,122 @@ export default function AnonymousChatApp() {
                   )}
                 </div>
               </div>
+            ) : activeTab === 'calls' ? (
+              // Tab C: CALLS / WEBCAMS / MATCHMAKING DECK
+              <div className="space-y-4">
+                {/* 1. Radar Match 1-a-1 Card */}
+                <div className="p-3.5 rounded-2xl border border-rose-500/20 bg-rose-950/10 hover:border-rose-500/30 transition-all flex flex-col gap-2.5 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 blur-xl rounded-full" />
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-400">
+                      <Compass className="w-4 h-4 animate-spin" style={{ animationDuration: '8s' }} />
+                    </div>
+                    <div>
+                      <h4 className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">Radar Match 1-a-1</h4>
+                      <p className="text-[9px] text-slate-500">Videochat rápido anónimo</p>
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-slate-400 leading-normal">
+                    Conéctate al instante de forma privada con video y voz con la persona más afín disponible en la red.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={isSearchingRandom ? cancelRandomMatch : startRandomMatch}
+                    className={`w-full py-2 px-3 rounded-xl text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      isSearchingRandom
+                        ? 'bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30'
+                        : 'bg-gradient-to-r from-rose-500 to-indigo-600 hover:from-rose-600 hover:to-indigo-700 text-white shadow-lg shadow-rose-500/10 hover:scale-[1.01]'
+                    }`}
+                  >
+                    <span>{isSearchingRandom ? 'Cancelar Radar 📡' : 'Iniciar Radar 🎯'}</span>
+                  </button>
+                </div>
+
+                {/* 2. Mi Enlace de Llamada Card */}
+                <div className="p-3.5 rounded-2xl border border-slate-900 bg-slate-950/40 hover:border-slate-800 transition-all flex flex-col gap-2 relative">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                      <Share2 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">Mi Enlace Directo</h4>
+                      <p className="text-[9px] text-slate-500">Recibe videollamadas privadas</p>
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-slate-400 leading-normal">
+                    Comparte este enlace para que cualquier usuario pueda iniciar una videollamada contigo directamente.
+                  </p>
+                  <div className="flex gap-1.5 mt-0.5">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/room/${userId}`}
+                      className="flex-1 bg-slate-950/80 border border-slate-900 rounded-lg text-[8px] font-mono text-slate-500 p-2 select-all focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleCopyRoomLink(userId, 'Llamada Directa')}
+                      className="px-3 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-lg text-[9px] font-bold transition-all cursor-pointer flex items-center justify-center"
+                    >
+                      Copiar
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. Webcam Social / Active Rooms Grid */}
+                <div className="space-y-2">
+                  <div className="text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-2 px-1 flex items-center justify-between">
+                    <span>Webcams & Video Salas</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  </div>
+
+                  {/* List active rooms designed as Video Rooms */}
+                  {[
+                    { id: 'general', name: 'Lobby de Video Chat', active: lobbyStats.totalOnline || 8, tag: 'Público', host: 'Sistema', desc: 'Sala general para charlar, compartir cámara y hacer amigos.' },
+                    { id: 'confesiones', name: 'Sala Confesiones 🤫', active: 3, tag: 'Voz & Video', host: 'Moderador', desc: 'Video y micrófono libre para secretos picantes y anécdotas.' },
+                    { id: 'novia-ia', name: 'Video Chat Novia IA 💖', active: 1, tag: 'Simulador', host: 'Novia Inteligente', desc: 'Llamada interactiva con IA de última generación para compañía.' }
+                  ].map((room) => (
+                    <div
+                      key={room.id}
+                      className="p-3 rounded-2xl border border-slate-900 bg-slate-950/30 hover:border-slate-800/80 hover:bg-slate-900/10 transition-all flex flex-col gap-2"
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span className="text-[7px] font-bold bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded uppercase">
+                            {room.tag}
+                          </span>
+                          <span className="font-extrabold text-[11px] text-slate-200 truncate block">
+                            {room.name}
+                          </span>
+                        </div>
+                        <span className="text-[8px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded shrink-0">
+                          {room.active} live
+                        </span>
+                      </div>
+                      <p className="text-[9px] text-slate-500 leading-snug line-clamp-1">
+                        {room.desc}
+                      </p>
+                      <div className="flex items-center justify-between gap-2 border-t border-slate-900/60 pt-2 mt-0.5">
+                        <span className="text-[8px] text-slate-600 truncate">Host: {room.host}</span>
+                        <button
+                          type="button"
+                          onClick={() => joinRoom(room.id)}
+                          className={`px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                            currentRoom === room.id
+                              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                              : 'bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/20'
+                          }`}
+                        >
+                          <Video className="w-2.5 h-2.5 shrink-0" />
+                          <span>{currentRoom === room.id ? 'Dentro' : 'Conectar'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : (
-              // Tab C: USERS ONLINE IN CURRENT ROOM WITH DIRECT CALL BUTTONS
+              // Tab D: USERS ONLINE IN CURRENT ROOM WITH DIRECT CALL BUTTONS
               <div className="space-y-1.5">
                 <div className="text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-2 px-1">
                   Usuarios activos en esta sala
