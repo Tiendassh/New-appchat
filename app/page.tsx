@@ -2177,10 +2177,16 @@ export default function AnonymousChatApp() {
                         </div>
 
                         <div>
-                          <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase mb-1">Tu confesión o historia</label>
+                          <div className="flex justify-between items-center mb-1">
+                            <label className="block text-[8px] font-mono font-bold text-slate-500 uppercase">Tu confesión o historia</label>
+                            <span className={`text-[8px] font-mono font-bold ${newStoryContent.length >= 900 ? 'text-rose-500' : 'text-slate-500'}`}>
+                              {newStoryContent.length}/1000
+                            </span>
+                          </div>
                           <textarea
                             placeholder="Desahógate de forma totalmente anónima aquí..."
                             rows={3}
+                            maxLength={1000}
                             value={newStoryContent}
                             onChange={(e) => setNewStoryContent(e.target.value)}
                             className="w-full bg-slate-950 border border-slate-900 rounded-lg p-2 text-slate-200 text-xs placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-pink-500 resize-none"
