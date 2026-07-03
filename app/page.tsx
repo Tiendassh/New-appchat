@@ -29,7 +29,8 @@ import {
   ChevronRight,
   ScreenShare,
   Heart,
-  CreditCard
+  CreditCard,
+  Share2
 } from 'lucide-react';
 import { User, ChatMessage, SignalingQueueItem, RoomInfo, DebateTopic, ConfessionStory } from '@/lib/types';
 import { STATIC_ROOMS } from '@/lib/chatStore';
@@ -141,6 +142,33 @@ export default function AnonymousChatApp() {
   const [gfEditingPersonality, setGfEditingPersonality] = useState<string>('cariñosa');
   const [gfEditingStyle, setGfEditingStyle] = useState<string>('anime');
   const [showGfConfigModal, setShowGfConfigModal] = useState<boolean>(false);
+
+  // Copy Link helper function
+  const handleCopyRoomLink = (roomId: string, roomName?: string) => {
+    const url = `${window.location.origin}/room/${roomId}`;
+    navigator.clipboard.writeText(url);
+    setCallRejectedNotification(`¡Enlace de la sala ${roomName ? `"${roomName}" ` : ''}copiado! 🔗`);
+    setTimeout(() => setCallRejectedNotification(null), 3500);
+  };
+
+  // URL parser effect to auto-join rooms shared by link (with state safety)
+  useEffect(() => {
+    if (mounted && userId) {
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlRoom = searchParams.get('room');
+      if (urlRoom) {
+        const timer = setTimeout(() => {
+          setCurrentRoom(urlRoom);
+          if (!name.trim() || name === 'Espectador') {
+            setName(getRandomName());
+          }
+          setAgeConfirmed(true);
+          setHasEntered(true);
+        }, 0);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [mounted, userId, name]);
 
   const fetchGirlfriendConfig = useCallback(async (uid: string) => {
     if (!uid) return;
@@ -515,6 +543,31 @@ export default function AnonymousChatApp() {
       peerConnectionRef.current = null;
     }
   }, [localStream]);
+
+  // Trigger matchmaking
+  const startRandomMatch = () => {
+    stopAllMedia();
+    setPeer(null);
+    setActiveCall(false);
+    setIsSearchingRandom(true);
+    setCurrentRoom(null);
+  };
+
+  // Stop matchmaking
+  const cancelRandomMatch = React.useCallback(() => {
+    setIsSearchingRandom(false);
+    setCurrentRoom('general');
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        action: 'leave-random',
+        isSearchingRandom: false,
+        currentRoom: 'general'
+      })
+    }).catch(err => console.warn('Cancel match endpoint error gracefully', err));
+  }, [userId]);
 
   // Trigger a simulated virtual match for Premium users after 5 seconds if no peer is matched yet
   useEffect(() => {
@@ -1373,31 +1426,6 @@ export default function AnonymousChatApp() {
     setMessages([]);
   };
 
-  // Trigger matchmaking
-  const startRandomMatch = () => {
-    stopAllMedia();
-    setPeer(null);
-    setActiveCall(false);
-    setIsSearchingRandom(true);
-    setCurrentRoom(null);
-  };
-
-  // Stop matchmaking
-  function cancelRandomMatch() {
-    setIsSearchingRandom(false);
-    setCurrentRoom('general');
-    fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId,
-        action: 'leave-random',
-        isSearchingRandom: false,
-        currentRoom: 'general'
-      })
-    }).catch(err => console.warn('Cancel match endpoint error gracefully', err));
-  }
-
   // Handle room user Direct Call Invite
   const requestDirectCall = (targetId: string, targetName: string) => {
     if (targetId === userId) return;
@@ -1824,10 +1852,18 @@ export default function AnonymousChatApp() {
                                 <p className="text-[9px] text-slate-500 truncate">{r.description}</p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center gap-1.5 shrink-0">
                               <span className="text-[8px] font-mono bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-md font-bold">
                                 {r.activeUsers} act.
                               </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyRoomLink(r.id, r.name)}
+                                className="p-1 text-slate-400 hover:text-indigo-400 hover:bg-slate-900/80 rounded transition-all cursor-pointer"
+                                title="Copiar enlace"
+                              >
+                                <Share2 className="w-3.5 h-3.5" />
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => handleDirectRoomAccess(r.id)}
@@ -1854,10 +1890,18 @@ export default function AnonymousChatApp() {
                                   <p className="text-[9px] text-slate-500 truncate">{r.description}</p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 shrink-0">
+                              <div className="flex items-center gap-1.5 shrink-0">
                                 <span className="text-[8px] font-mono bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded-md font-bold">
                                   0 act.
                                 </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyRoomLink(r.id, r.name)}
+                                  className="p-1 text-slate-400 hover:text-indigo-400 hover:bg-slate-900/80 rounded transition-all cursor-pointer"
+                                  title="Copiar enlace"
+                                >
+                                  <Share2 className="w-3.5 h-3.5" />
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => handleDirectRoomAccess(r.id)}
@@ -2799,9 +2843,22 @@ export default function AnonymousChatApp() {
                         <span className="font-extrabold text-xs text-slate-200 block truncate">
                           {room.name}
                         </span>
-                        <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-md">
-                          {room.activeUsers} live
-                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyRoomLink(room.id, room.name);
+                            }}
+                            className="p-1 text-slate-400 hover:text-indigo-400 bg-slate-950/60 hover:bg-slate-950 rounded border border-slate-800/40 hover:border-slate-800 transition-all cursor-pointer"
+                            title="Copiar enlace de sala"
+                          >
+                            <Share2 className="w-3 h-3" />
+                          </button>
+                          <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-md">
+                            {room.activeUsers} live
+                          </span>
+                        </div>
                       </div>
                       <p className="text-[10px] text-slate-400 leading-snug line-clamp-2">
                         {room.description}
@@ -2892,9 +2949,19 @@ export default function AnonymousChatApp() {
                           }`}
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <span className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-1.5 py-0.5 rounded-md">
-                              {debate.category}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-1.5 py-0.5 rounded-md">
+                                {debate.category}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyRoomLink(debate.id, debate.title)}
+                                className="p-1 text-slate-400 hover:text-indigo-400 hover:bg-slate-950 rounded transition-all cursor-pointer"
+                                title="Copiar enlace de debate"
+                              >
+                                <Share2 className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
                             <button
                               type="button"
                               onClick={() => handleVoteDebate(debate.id)}
@@ -3343,6 +3410,15 @@ export default function AnonymousChatApp() {
 
                       {/* Small mobile rooms listing icon toggle to switch channels if sidebar is missing */}
                       <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyRoomLink(currentRoom, roomName)}
+                          className="flex items-center gap-1.5 py-1.5 px-3 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 hover:border-indigo-500/40 rounded-full font-bold text-[10px] transition-all cursor-pointer hover:scale-105"
+                          title="Copiar enlace de invitación a este chat"
+                        >
+                          <Share2 className="w-3.5 h-3.5 shrink-0" />
+                          <span className="hidden sm:inline">Copiar Enlace</span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => {
