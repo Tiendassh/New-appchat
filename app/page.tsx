@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Video,
@@ -127,6 +127,127 @@ export default function AnonymousChatApp() {
   const [rooms, setRooms] = useState<(RoomInfo & { activeUsers: number })[]>([]);
   const [roomUsers, setRoomUsers] = useState<Partial<User>[]>([]);
   const [coverTab, setCoverTab] = useState<'chat' | 'debates' | 'photos' | 'match' | 'shows' | 'relatos'>('chat');
+
+  // Girlfriend configuration state
+  const [girlfriendConfig, setGirlfriendConfig] = useState<{
+    name: string;
+    personality: string;
+    avatarStyle: string;
+    avatarUrl: string;
+    mood: string;
+  } | null>(null);
+  const [isGeneratingAvatar, setIsGeneratingAvatar] = useState<boolean>(false);
+  const [gfEditingName, setGfEditingName] = useState<string>('Sofía');
+  const [gfEditingPersonality, setGfEditingPersonality] = useState<string>('cariñosa');
+  const [gfEditingStyle, setGfEditingStyle] = useState<string>('anime');
+  const [showGfConfigModal, setShowGfConfigModal] = useState<boolean>(false);
+
+  const fetchGirlfriendConfig = useCallback(async (uid: string) => {
+    if (!uid) return;
+    try {
+      const response = await fetch('/api/girlfriend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: uid, action: 'get-config' }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.config) {
+          setGirlfriendConfig(data.config);
+          setGfEditingName(data.config.name);
+          setGfEditingPersonality(data.config.personality);
+          setGfEditingStyle(data.config.avatarStyle);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to fetch girlfriend config', error);
+    }
+  }, []);
+
+  const handleSaveGirlfriendConfig = async () => {
+    if (!userId) return;
+    try {
+      const response = await fetch('/api/girlfriend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          action: 'save-config',
+          config: {
+            name: gfEditingName,
+            personality: gfEditingPersonality,
+            avatarStyle: gfEditingStyle,
+          }
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.config) {
+          setGirlfriendConfig(data.config);
+          setCallRejectedNotification(`¡Personalización de ${data.config.name} guardada correctamente! 💕`);
+          setTimeout(() => setCallRejectedNotification(null), 3000);
+        }
+      }
+    } catch (err) {
+      console.error('Error saving girlfriend config', err);
+    }
+  };
+
+  const handleGenerateGfAvatar = async () => {
+    if (!userId) return;
+    setIsGeneratingAvatar(true);
+    try {
+      await fetch('/api/girlfriend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          action: 'save-config',
+          config: {
+            name: gfEditingName,
+            personality: gfEditingPersonality,
+            avatarStyle: gfEditingStyle,
+          }
+        }),
+      });
+
+      const response = await fetch('/api/girlfriend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          action: 'generate-avatar'
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.avatarUrl) {
+          setGirlfriendConfig(prev => prev ? { ...prev, avatarUrl: data.avatarUrl } : null);
+          setCallRejectedNotification(`¡Nueva foto de perfil generada con éxito para ${gfEditingName}! ✨🎨`);
+          setTimeout(() => setCallRejectedNotification(null), 3000);
+        } else {
+          throw new Error(data.error || 'No avatar returned');
+        }
+      } else {
+        const data = await response.json();
+        throw new Error(data.error || 'Server error');
+      }
+    } catch (err: any) {
+      console.error('Error generating avatar:', err);
+      alert(err.message || 'Error al generar la imagen de perfil.');
+    } finally {
+      setIsGeneratingAvatar(false);
+    }
+  };
+
+  useEffect(() => {
+    if (hasEntered && userId) {
+      const timer = setTimeout(() => {
+        fetchGirlfriendConfig(userId);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [hasEntered, userId, fetchGirlfriendConfig]);
 
   // Debate Forums States (Moved up to prevent early access)
   const [debates, setDebates] = useState<DebateTopic[]>([]);
@@ -3236,6 +3357,16 @@ export default function AnonymousChatApp() {
                           <Lock className="w-3.5 h-3.5 shrink-0" />
                           <span className="hidden sm:inline">Guardar Chat</span>
                         </button>
+                        {currentRoom === 'novia-ia' && (
+                          <button
+                            type="button"
+                            onClick={() => setShowGfConfigModal(true)}
+                            className="flex items-center gap-1.5 py-1.5 px-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 hover:border-rose-500/40 rounded-full font-bold text-[10px] transition-all cursor-pointer hover:scale-105"
+                          >
+                            <Heart className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
+                            <span>Personalizar 💖</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setActiveTab('debates')}
@@ -3257,95 +3388,244 @@ export default function AnonymousChatApp() {
                   );
                 })()}
 
-                {/* Messages Scrolling Grid */}
-                <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-                  {/* No messages indicator */}
-                  {messages.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center space-y-3 py-12">
-                      <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500">
-                        <MessageSquare className="w-5 h-5" />
+                {/* Horizontal split container for Virtual Girlfriend */}
+                <div className="flex-1 flex overflow-hidden">
+                  {/* Messages Feed (Left) */}
+                  <div className="flex-1 flex flex-col overflow-hidden relative">
+                    {/* Messages Scrolling Grid */}
+                    <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+                      {/* No messages indicator */}
+                      {messages.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center space-y-3 py-12">
+                          <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500">
+                            <MessageSquare className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-400">El historial está vacío</p>
+                            <p className="text-[10px] text-slate-600 max-w-xs mt-1">
+                              Sé el primero en saludar de forma anónima. Recuerda que al salir o recargar la página, todo se borra.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        messages.map((msg) => {
+                          const isMe = msg.senderId === userId;
+                          return (
+                            <div
+                              key={msg.id}
+                              className={`flex items-start gap-2.5 max-w-[85%] md:max-w-[70%] ${
+                                isMe ? 'ml-auto flex-row-reverse' : 'mr-auto'
+                              }`}
+                            >
+                              {/* Colored dot or girlfriend avatar representation */}
+                              {msg.senderId === 'girlfriend' ? (
+                                <img
+                                  src={girlfriendConfig?.avatarUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&q=80'}
+                                  alt={msg.senderName}
+                                  className="w-7 h-7 rounded-full shrink-0 border border-rose-500/40 object-cover select-none shadow"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <div
+                                  className="w-7 h-7 rounded-full shrink-0 border border-slate-800/80 flex items-center justify-center text-[10px] font-bold text-slate-900 select-none shadow"
+                                  style={{ backgroundColor: msg.senderColor }}
+                                >
+                                  {msg.senderName.substring(0, 1).toUpperCase()}
+                                </div>
+                              )}
+
+                              <div className="space-y-1">
+                                {/* Metadata */}
+                                <div className={`flex items-center gap-2 text-[10px] ${isMe ? 'justify-end' : ''}`}>
+                                  <span
+                                    className="font-bold"
+                                    style={{ color: isMe ? '#94a3b8' : (msg.senderId === 'girlfriend' ? '#f43f5e' : msg.senderColor) }}
+                                  >
+                                    {msg.senderName} {isMe && '(Tú)'}
+                                  </span>
+                                  <span className="text-slate-600 font-mono">
+                                    {formatTime(msg.timestamp)}
+                                  </span>
+                                  {!isMe && msg.senderId !== 'girlfriend' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => requestDirectCall(msg.senderId, msg.senderName)}
+                                      className="ml-2 px-1.5 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:border-emerald-500/40 text-[9px] font-bold flex items-center gap-0.5 cursor-pointer transition-all"
+                                      title={`Llamar por voz/video a ${msg.senderName}`}
+                                    >
+                                      <Phone className="w-2.5 h-2.5" />
+                                      <span>Llamar</span>
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Message text body or voice player */}
+                                <div
+                                  className={`p-3.5 rounded-2xl text-xs leading-relaxed break-words shadow-sm ${
+                                    isMe
+                                      ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-none border border-indigo-500/20'
+                                      : (msg.senderId === 'girlfriend'
+                                          ? 'bg-gradient-to-br from-rose-950/20 to-rose-900/10 text-rose-100 border border-rose-500/20 rounded-tl-none shadow-[0_0_15px_rgba(244,63,94,0.05)]'
+                                          : 'bg-slate-900/60 text-slate-200 border border-slate-800/80 rounded-tl-none')
+                                  }`}
+                                >
+                                  {msg.audioUrl ? (
+                                    <div className="space-y-1.5 min-w-[200px]">
+                                      <div className="flex items-center gap-1 opacity-80">
+                                        <span className="text-[10px] uppercase font-bold tracking-wider flex items-center gap-1">
+                                          <span>🎙️</span> Nota de voz
+                                        </span>
+                                      </div>
+                                      <audio 
+                                        src={msg.audioUrl} 
+                                        controls 
+                                        className="w-full h-8 max-w-xs focus:outline-none rounded bg-slate-950/80 border border-slate-800/60"
+                                      />
+                                    </div>
+                                  ) : (
+                                    msg.text
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  </div>
+
+                  {/* Girlfriend Settings panel (Right side - desktop/large screen) */}
+                  {currentRoom === 'novia-ia' && (
+                    <div className="w-80 border-l border-slate-900 bg-slate-950/40 p-5 overflow-y-auto hidden lg:flex flex-col space-y-5 shrink-0">
+                      {/* Avatar & Relationship Header */}
+                      <div className="text-center space-y-3 pb-4 border-b border-slate-900">
+                        <div className="relative mx-auto w-24 h-24 rounded-full overflow-hidden border-2 border-rose-500/40 shadow-[0_0_15px_rgba(236,72,153,0.15)] group">
+                          {isGeneratingAvatar ? (
+                            <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center space-y-1 z-10">
+                              <RefreshCw className="w-6 h-6 text-rose-500 animate-spin" />
+                              <span className="text-[9px] text-rose-400 font-extrabold animate-pulse">Pintando...</span>
+                            </div>
+                          ) : null}
+                          <img
+                            src={girlfriendConfig?.avatarUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&q=80'}
+                            alt={girlfriendConfig?.name || 'Novia'}
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                        
+                        <div>
+                          <h3 className="text-sm font-extrabold text-slate-100 flex items-center justify-center gap-1">
+                            {girlfriendConfig?.name || 'Sofía'} 💖
+                          </h3>
+                          <p className="text-[10px] text-rose-400 font-semibold uppercase tracking-wider">
+                            Pareja Virtual Ideal
+                          </p>
+                          <p className="text-[10px] text-slate-500 mt-1 italic">
+                            Humor: {girlfriendConfig?.mood || '¡Muy feliz de verte! 🥰'}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-bold text-slate-400">El historial está vacío</p>
-                        <p className="text-[10px] text-slate-600 max-w-xs mt-1">
-                          Sé el primero en saludar de forma anónima. Recuerda que al salir o recargar la página, todo se borra.
+
+                      {/* Config Form */}
+                      <div className="space-y-4 flex-1">
+                        <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                          Personalizar Compañera
+                        </div>
+
+                        {/* Name Field */}
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400">Nombre de tu Novia</label>
+                          <input
+                            type="text"
+                            maxLength={20}
+                            value={gfEditingName}
+                            onChange={(e) => setGfEditingName(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                            placeholder="Ej. Sofía, Isabella, Luna..."
+                          />
+                        </div>
+
+                        {/* Personality Field */}
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400">Personalidad</label>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {[
+                              { id: 'cariñosa', label: 'Cariñosa 💕' },
+                              { id: 'intelectual', label: 'Intelectual 🧠' },
+                              { id: 'divertida', label: 'Divertida 😜' },
+                              { id: 'misteriosa', label: 'Misteriosa 🌌' },
+                              { id: 'apoyadora', label: 'Apoyadora ⚡' },
+                            ].map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => setGfEditingPersonality(p.id)}
+                                className={`py-1.5 px-2 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                                  gfEditingPersonality === p.id
+                                    ? 'bg-rose-500/10 border-rose-500 text-rose-400'
+                                    : 'bg-slate-900/40 border-transparent text-slate-500 hover:text-slate-400'
+                                }`}
+                              >
+                                {p.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Visual Style Look Field */}
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400">Aspecto / Estilo de Foto</label>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {[
+                              { id: 'anime', label: 'Anime 🌸' },
+                              { id: 'realista', label: 'Realista 📸' },
+                              { id: 'cyberpunk', label: 'Cyberpunk 👾' },
+                              { id: 'gótica', label: 'Gótica 🖤' },
+                              { id: 'casual', label: 'Casual ☀️' },
+                            ].map((s) => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => setGfEditingStyle(s.id)}
+                                className={`py-1.5 px-2 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                                  gfEditingStyle === s.id
+                                    ? 'bg-rose-500/10 border-rose-500 text-rose-400'
+                                    : 'bg-slate-900/40 border-transparent text-slate-500 hover:text-slate-400'
+                                }`}
+                              >
+                                {s.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="space-y-2 pt-4 border-t border-slate-900 shrink-0">
+                        <button
+                          type="button"
+                          onClick={handleSaveGirlfriendConfig}
+                          className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold rounded-xl text-[11px] transition-all cursor-pointer shadow-md shadow-indigo-500/5 flex items-center justify-center gap-1.5"
+                        >
+                          <span>Guardar Cambios 💾</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isGeneratingAvatar}
+                          onClick={handleGenerateGfAvatar}
+                          className="w-full py-2.5 px-3 bg-gradient-to-r from-rose-500 to-pink-600 hover:opacity-90 disabled:opacity-50 text-white font-extrabold rounded-xl text-[11px] transition-all cursor-pointer shadow-md shadow-rose-500/5 flex items-center justify-center gap-1.5"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
+                          <span>Generar Foto con IA ✨</span>
+                        </button>
+                        <p className="text-[9px] text-slate-500 text-center leading-normal">
+                          Usa Gemini para pintar un retrato 1:1 único basado en su estilo y nombre.
                         </p>
                       </div>
                     </div>
-                  ) : (
-                    messages.map((msg) => {
-                      const isMe = msg.senderId === userId;
-                      return (
-                        <div
-                          key={msg.id}
-                          className={`flex items-start gap-2.5 max-w-[85%] md:max-w-[70%] ${
-                            isMe ? 'ml-auto flex-row-reverse' : 'mr-auto'
-                          }`}
-                        >
-                          {/* Colored dot representation */}
-                          <div
-                            className="w-7 h-7 rounded-full shrink-0 border border-slate-800/80 flex items-center justify-center text-[10px] font-bold text-slate-900 select-none shadow"
-                            style={{ backgroundColor: msg.senderColor }}
-                          >
-                            {msg.senderName.substring(0, 1).toUpperCase()}
-                          </div>
-
-                          <div className="space-y-1">
-                            {/* Metadata */}
-                            <div className={`flex items-center gap-2 text-[10px] ${isMe ? 'justify-end' : ''}`}>
-                              <span
-                                className="font-bold"
-                                style={{ color: isMe ? '#94a3b8' : msg.senderColor }}
-                              >
-                                {msg.senderName} {isMe && '(Tú)'}
-                              </span>
-                              <span className="text-slate-600 font-mono">
-                                {formatTime(msg.timestamp)}
-                              </span>
-                              {!isMe && (
-                                <button
-                                  type="button"
-                                  onClick={() => requestDirectCall(msg.senderId, msg.senderName)}
-                                  className="ml-2 px-1.5 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:border-emerald-500/40 text-[9px] font-bold flex items-center gap-0.5 cursor-pointer transition-all"
-                                  title={`Llamar por voz/video a ${msg.senderName}`}
-                                >
-                                  <Phone className="w-2.5 h-2.5" />
-                                  <span>Llamar</span>
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Message text body or voice player */}
-                            <div
-                              className={`p-3.5 rounded-2xl text-xs leading-relaxed break-words shadow-sm ${
-                                isMe
-                                  ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-none border border-indigo-500/20'
-                                  : 'bg-slate-900/60 text-slate-200 border border-slate-800/80 rounded-tl-none'
-                              }`}
-                            >
-                              {msg.audioUrl ? (
-                                <div className="space-y-1.5 min-w-[200px]">
-                                  <div className="flex items-center gap-1 opacity-80">
-                                    <span className="text-[10px] uppercase font-bold tracking-wider flex items-center gap-1">
-                                      <span>🎙️</span> Nota de voz
-                                    </span>
-                                  </div>
-                                  <audio 
-                                    src={msg.audioUrl} 
-                                    controls 
-                                    className="w-full h-8 max-w-xs focus:outline-none rounded bg-slate-950/80 border border-slate-800/60"
-                                  />
-                                </div>
-                              ) : (
-                                msg.text
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
                   )}
-                  <div ref={messagesEndRef} />
                 </div>
 
                 {/* Mobile rooms switcher scrollable strip (only visible on mobile screens) */}
@@ -3427,7 +3707,7 @@ export default function AnonymousChatApp() {
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
                         className="flex-1 bg-slate-900/60 border border-slate-800 rounded-2xl py-3 px-4 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-xs"
-                        placeholder="Escribe un mensaje anónimo..."
+                        placeholder={currentRoom === 'novia-ia' ? (girlfriendConfig ? `Escríbele algo lindo a ${girlfriendConfig.name}...` : "Escríbele algo lindo...") : "Escribe un mensaje anónimo..."}
                       />
                       
                       <button
@@ -3453,6 +3733,153 @@ export default function AnonymousChatApp() {
 
         </main>
       </div>
+
+      {/* VIRTUAL GIRLFRIEND CUSTOMIZATION MODAL (MOBILE) */}
+      <AnimatePresence>
+        {showGfConfigModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(236,72,153,0.15)] flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="p-4 border-b border-slate-800 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <Heart className="w-4 h-4 text-rose-500 fill-rose-500/20" />
+                  <span className="text-xs font-bold text-slate-200">Personalizar Compañera Virtual</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowGfConfigModal(false)}
+                  className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 cursor-pointer transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                {/* Avatar Display */}
+                <div className="flex items-center gap-4 pb-4 border-b border-slate-800 shrink-0">
+                  <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-rose-500/40 shrink-0">
+                    {isGeneratingAvatar && (
+                      <div className="absolute inset-0 bg-slate-950/90 flex items-center justify-center z-10">
+                        <RefreshCw className="w-4 h-4 text-rose-500 animate-spin" />
+                      </div>
+                    )}
+                    <img
+                      src={girlfriendConfig?.avatarUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&q=80'}
+                      alt={girlfriendConfig?.name || 'Novia'}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-extrabold text-slate-100">{girlfriendConfig?.name || 'Sofía'} 💖</h3>
+                    <p className="text-[10px] text-slate-500 italic mt-0.5">Humor: {girlfriendConfig?.mood || '¡Muy feliz de verte! 🥰'}</p>
+                  </div>
+                </div>
+
+                {/* Fields */}
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">Nombre de tu Novia</label>
+                    <input
+                      type="text"
+                      maxLength={20}
+                      value={gfEditingName}
+                      onChange={(e) => setGfEditingName(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-rose-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">Personalidad</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {[
+                        { id: 'cariñosa', label: 'Cariñosa 💕' },
+                        { id: 'intelectual', label: 'Intelectual 🧠' },
+                        { id: 'divertida', label: 'Divertida 😜' },
+                        { id: 'misteriosa', label: 'Misteriosa 🌌' },
+                        { id: 'apoyadora', label: 'Apoyadora ⚡' },
+                      ].map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setGfEditingPersonality(p.id)}
+                          className={`py-1.5 px-2 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                            gfEditingPersonality === p.id
+                              ? 'bg-rose-500/10 border-rose-500 text-rose-400'
+                              : 'bg-slate-950 border-transparent text-slate-500'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">Aspecto / Estilo de Foto</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {[
+                        { id: 'anime', label: 'Anime 🌸' },
+                        { id: 'realista', label: 'Realista 📸' },
+                        { id: 'cyberpunk', label: 'Cyberpunk 👾' },
+                        { id: 'gótica', label: 'Gótica 🖤' },
+                        { id: 'casual', label: 'Casual ☀️' },
+                      ].map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setGfEditingStyle(s.id)}
+                          className={`py-1.5 px-2 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                            gfEditingStyle === s.id
+                              ? 'bg-rose-500/10 border-rose-500 text-rose-400'
+                              : 'bg-slate-950 border-transparent text-slate-500'
+                          }`}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-slate-800 bg-slate-950/40 space-y-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSaveGirlfriendConfig();
+                    setShowGfConfigModal(false);
+                  }}
+                  className="w-full py-2 px-3 bg-indigo-600 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <span>Guardar Cambios 💾</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isGeneratingAvatar}
+                  onClick={handleGenerateGfAvatar}
+                  className="w-full py-2 px-3 bg-gradient-to-r from-rose-500 to-pink-600 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
+                  <span>Generar Foto con IA ✨</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* PREMIUM CHECKOUT MODAL */}
       <AnimatePresence>

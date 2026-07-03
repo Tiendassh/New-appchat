@@ -35,6 +35,13 @@ export const STATIC_ROOMS: RoomInfo[] = [
     description: 'Charla sobre tecnología, programación, gadgets y proyectos interesantes.',
     icon: 'Cpu',
     tags: ['devs', 'tecnología', 'futuro']
+  },
+  {
+    id: 'novia-ia',
+    name: 'Novia Virtual IA 💖',
+    description: 'Habla en privado con tu compañera virtual perfecta. Personaliza su nombre, personalidad y aspecto.',
+    icon: 'Heart',
+    tags: ['ia', 'compañía', 'romance']
   }
 ];
 
@@ -42,6 +49,13 @@ interface GlobalChatStore {
   users: Map<string, User>;
   roomMessages: Map<string, ChatMessage[]>;
   signalingQueues: Map<string, SignalingQueueItem[]>;
+  girlfriendConfigs?: Map<string, {
+    name: string;
+    personality: string;
+    avatarStyle: string;
+    avatarUrl?: string;
+    mood?: string;
+  }>;
   debates: DebateTopic[];
   stories: ConfessionStory[];
 }
@@ -55,6 +69,7 @@ export const chatStore: GlobalChatStore = globalForChat.chatStore ?? {
   users: new Map(),
   roomMessages: new Map(),
   signalingQueues: new Map(),
+  girlfriendConfigs: new Map(),
   debates: [
     {
       id: 'd1',

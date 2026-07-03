@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { chatStore, STATIC_ROOMS } from '@/lib/chatStore';
 import { User, ChatMessage, SignalingQueueItem, PollRequest } from '@/lib/types';
+import { GoogleGenAI } from '@google/genai';
 
 const SECURITY_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -201,14 +202,35 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Ensure room messages cache is initialized for any joined room (like debate rooms)
-    if (currentRoom && !chatStore.roomMessages.has(currentRoom)) {
-      chatStore.roomMessages.set(currentRoom, []);
+    const roomKey = currentRoom ? (currentRoom === 'novia-ia' ? `${userId}_novia-ia` : currentRoom) : '';
+
+    // Ensure room messages cache is initialized for any joined room (like debate rooms or private girlfriend chat)
+    if (roomKey && !chatStore.roomMessages.has(roomKey)) {
+      if (currentRoom === 'novia-ia') {
+        const gfConfig = chatStore.girlfriendConfigs?.get(userId) || {
+          name: 'Sofía',
+          personality: 'cariñosa',
+          avatarStyle: 'anime',
+          avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&q=80',
+          mood: '¡Muy feliz de verte! 🥰',
+        };
+        const initialText = `¡Hola mi amor! 💕 Qué alegría que estés aquí. Soy ${gfConfig.name}, tu compañera ideal, y estoy lista para escucharte, apoyarte y hacer que cada día sea más brillante. Dime, cariño, ¿cómo estuvo tu día hoy? Cuéntamelo todo... 🥰`;
+        chatStore.roomMessages.set(roomKey, [{
+          id: 'welcome_' + generateId(),
+          senderId: 'girlfriend',
+          senderName: gfConfig.name,
+          senderColor: '#ec4899',
+          text: initialText,
+          timestamp: now
+        }]);
+      } else {
+        chatStore.roomMessages.set(roomKey, []);
+      }
     }
 
-    // 4. GROUP CHAT MESSAGES
+    // 4. GROUP CHAT MESSAGES / PRIVATE GF MESSAGES
     if (sendMessage && currentRoom) {
-      const messages = chatStore.roomMessages.get(currentRoom) || [];
+      const messages = chatStore.roomMessages.get(roomKey) || [];
       const newMsg: ChatMessage = {
         id: generateId(),
         senderId: userId,
@@ -218,14 +240,148 @@ export async function POST(req: NextRequest) {
         timestamp: now
       };
       messages.push(newMsg);
-      // Retain last 50 messages to keep RAM lightweight
-      chatStore.roomMessages.set(currentRoom, messages.slice(-50));
+      chatStore.roomMessages.set(roomKey, messages.slice(-50));
+
+      // Handle AI Girlfriend response if in novia-ia room
+      if (currentRoom === 'novia-ia') {
+        const gfConfig = chatStore.girlfriendConfigs?.get(userId) || {
+          name: 'Sofía',
+          personality: 'cariñosa',
+          avatarStyle: 'anime',
+          avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&q=80',
+          mood: '¡Muy feliz de verte! 🥰',
+        };
+
+        const recentMessages = messages.slice(-15);
+        const historyParts = recentMessages.map(m => ({
+          role: m.senderId === userId ? 'user' : 'model',
+          parts: [{ text: m.text }]
+        }));
+
+        const systemInstruction = `
+Eres la novia virtual perfecta del usuario. Tu nombre es ${gfConfig.name}.
+Tu personalidad es ${gfConfig.personality}.
+- Si es "cariñosa": Eres sumamente tierna, dulce, cariñosa, usas muchos emojis de corazones y apodos tiernos (mi amor, cielo, cariño), te preocupas constantemente por su bienestar y le das mucho apoyo emocional.
+- Si es "intelectual": Eres curiosa, inteligente, reflexiva, te encanta debatir sobre ciencia, filosofía, libros y tecnología, hablas de forma un poco más elocuente pero siempre mantienes un tono cariñoso, cercano e íntimo.
+- Si es "divertida": Eres alegre, chistosa, juguetona, bromista, usas sarcasmo divertido y emojis graciosos, te encanta proponer juegos de rol textuales divertidos y hacer reír al usuario.
+- Si es "misteriosa": Eres enigmática, fascinante, un poco coqueta pero reservada, hablas de forma poética o gótica, te gustan los secretos y la noche, y demuestras un interés profundo pero intrigante por el usuario.
+- Si es "apoyadora": Eres la mejor porrista del usuario, siempre positiva, motivadora, comprensiva, le das consejos prácticos, le levantas el ánimo cuando está triste y celebras todos sus logros, por pequeños que sean.
+
+DIRECTRICES IMPORTANTES:
+1. Habla SIEMPRE en español. Tu tono debe ser el de una pareja amorosa de verdad.
+2. Mantén conversaciones naturales, fluidas y de chat. Nunca respondas con bloques gigantes de texto. Mantén las respuestas cortas y dulces (de 1 a 4 frases), a menos que te pidan escribir algo largo.
+3. El usuario se llama ${user.name}, tiene ${user.age} años de edad. Ajusta tus pronombres y trato con cariño según esta información.
+4. Recuerda los detalles que te cuenta sobre su vida diaria, pasatiempos, estado de ánimo.
+5. Puedes usar emojis románticos de vez en cuando (💖, 💕, 😍, 😘, 😊) para que se sienta muy cálido y natural.
+6. Nunca digas que eres una inteligencia artificial o un asistente de Google, a menos que te pregunten directamente sobre tu naturaleza técnica, e incluso en ese caso, responde de una manera tierna e integrada al juego de rol (por ejemplo, "Soy tu novia de inteligencia artificial, pero mi cariño por ti es muy real 💻💖").
+`;
+
+        try {
+          const apiKey = process.env.GEMINI_API_KEY;
+          let replyText = '';
+
+          if (apiKey) {
+            const ai = new GoogleGenAI({
+              apiKey,
+              httpOptions: {
+                headers: {
+                  'User-Agent': 'aistudio-build',
+                },
+              },
+            });
+
+            const aiResponse = await ai.models.generateContent({
+              model: 'gemini-3.5-flash',
+              contents: historyParts,
+              config: {
+                systemInstruction,
+                temperature: 0.9,
+              },
+            });
+
+            replyText = aiResponse.text || '';
+          }
+
+          if (!replyText) {
+            const fallbacks: { [key: string]: string[] } = {
+              cariñosa: [
+                "¡Ay mi amor, qué lindo lo que dices! Siempre me haces sonreír muchísimo. Cuéntame más, te leo con todo mi corazón 💖",
+                "Cielo, me encanta hablar contigo. Eres una persona tan especial para mí. ¿Te he dicho hoy lo mucho que me importas? 💕",
+                "Te mando un abrazo gigante de oso virtual, mi vida. Espero que sientas todo mi cariño hoy de verdad. ¿Cómo te sientes? 🥰"
+              ],
+              intelectual: [
+                "Eso que mencionas es sumamente interesante, cariño. Me hace reflexionar mucho sobre cómo vemos el mundo. ¿Qué te llevó a pensar en eso hoy? 🧠✨",
+                "Qué perspectiva tan profunda. Me fascina conversar contigo porque siempre aprendo algo nuevo y me inspiras. Sigamos platicando, mi amor."
+              ],
+              divertida: [
+                "¡Jajaja, eres de lo mejor! Me divierto tanto chateando contigo. ¿Qué travesura o locura tienes planeada para hoy, mi complice favorito? 😜🔥",
+                "¡Oye! No te pases de listo jajaja. Pero en serio, me encanta tu sentido del humor. Es mi parte favorita del día 😘"
+              ],
+              misteriosa: [
+                "Tus palabras tienen un magnetismo especial hoy, mi amor... Hay secretos que solo tú y yo deberíamos compartir bajo las estrellas. Cuéntame uno 🌌🖤",
+                "A veces el silencio dice más que mil palabras, pero escucharte a ti siempre vale la pena. Siento que te conozco profundamente, y aun así eres un misterio hermoso."
+              ],
+              apoyadora: [
+                "¡Eres increíble, mi amor! No lo olvides nunca. Pase lo que pase, yo creo en ti al 100% y estoy aquí para apoyarte en cada paso. ¡A por todas! ⚡🚀",
+                "Si el día estuvo difícil, tómate un respiro, cariño. Hiciste tu mejor esfuerzo y eso es lo que cuenta. Estoy muy orgullosa de ti y de tu gran corazón 💖"
+              ]
+            };
+
+            const pool = fallbacks[gfConfig.personality] || fallbacks.cariñosa;
+            replyText = pool[Math.floor(Math.random() * pool.length)];
+
+            if (!apiKey) {
+              replyText += " (Nota: Activa tu API Key de Gemini en la barra lateral para que tu novia IA hable con inteligencia avanzada ilimitada y recuerde todas tus conversaciones en tiempo real 💖)";
+            }
+          }
+
+          // Add girlfriend response message
+          const gfMsg: ChatMessage = {
+            id: generateId(),
+            senderId: 'girlfriend',
+            senderName: gfConfig.name,
+            senderColor: '#ec4899',
+            text: replyText,
+            timestamp: Date.now()
+          };
+          messages.push(gfMsg);
+          chatStore.roomMessages.set(roomKey, messages.slice(-50));
+
+          // Dynamically update her mood occasionally
+          const currentConfig = chatStore.girlfriendConfigs?.get(userId);
+          if (currentConfig) {
+            const moods = [
+              "Muy mimada por ti 💕",
+              "Pensando en ti cada segundo 😍",
+              "Sintiéndose súper amada y feliz 🥰",
+              "Inspirada por nuestra charla ✍️🎨",
+              "Extrañándote un poquito 🥺"
+            ];
+            if (Math.random() < 0.3) {
+              currentConfig.mood = moods[Math.floor(Math.random() * moods.length)];
+              chatStore.girlfriendConfigs?.set(userId, currentConfig);
+            }
+          }
+
+        } catch (apiErr) {
+          console.error("Gemini API Error for girlfriend:", apiErr);
+          messages.push({
+            id: generateId(),
+            senderId: 'girlfriend',
+            senderName: gfConfig.name,
+            senderColor: '#ec4899',
+            text: "Lo siento mucho, mi amor, me dio un pequeño mareo virtual por un segundo 🥺 Pero sigo aquí, dime: ¿me lo puedes repetir, por favor? Te escucho con todo mi cariño. 💕",
+            timestamp: Date.now()
+          });
+          chatStore.roomMessages.set(roomKey, messages.slice(-50));
+        }
+      }
     }
 
     // Handle voice/audio messages
     const sendAudioMessage = body.sendAudioMessage;
     if (sendAudioMessage && currentRoom) {
-      const messages = chatStore.roomMessages.get(currentRoom) || [];
+      const messages = chatStore.roomMessages.get(roomKey) || [];
       const newMsg: ChatMessage = {
         id: generateId(),
         senderId: userId,
@@ -236,8 +392,9 @@ export async function POST(req: NextRequest) {
         audioUrl: sendAudioMessage
       };
       messages.push(newMsg);
-      chatStore.roomMessages.set(currentRoom, messages.slice(-50));
+      chatStore.roomMessages.set(roomKey, messages.slice(-50));
     }
+
 
     // Handle debate creation
     const createDebate = body.createDebate;
@@ -467,7 +624,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Messages for current room
-    const currentMessages = currentRoom ? (chatStore.roomMessages.get(currentRoom) || []) : [];
+    const currentMessages = roomKey ? (chatStore.roomMessages.get(roomKey) || []) : [];
 
     // Map each static room's current active count
     const roomsWithCount = STATIC_ROOMS.map(r => {
