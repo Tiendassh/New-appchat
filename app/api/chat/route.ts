@@ -17,6 +17,50 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
 
+// Check if userA and userB are compatible based on gender and sexual orientation
+function isCompatible(userA: any, userB: any): boolean {
+  const gA = userA.gender || 'unspecified';
+  const oA = userA.orientation || 'unspecified';
+  const gB = userB.gender || 'unspecified';
+  const oB = userB.orientation || 'unspecified';
+
+  // If either has "unspecified" as orientation, we can let them match anyone or treat them as open.
+  // To follow standard romantic matching:
+  let aLikesB = false;
+  if (oA === 'unspecified' || oA === 'any') {
+    aLikesB = true;
+  } else if (oA === 'bisexual' || oA === 'pansexual') {
+    aLikesB = (gB === 'male' || gB === 'female' || gB === 'nonbinary' || gB === 'couple');
+  } else if (oA === 'heterosexual') {
+    if (gA === 'male' && (gB === 'female' || gB === 'couple')) aLikesB = true;
+    if (gA === 'female' && (gB === 'male' || gB === 'couple')) aLikesB = true;
+    if (gA === 'couple' && (gB === 'male' || gB === 'female')) aLikesB = true;
+  } else if (oA === 'homosexual') {
+    if (gA === 'male' && gB === 'male') aLikesB = true;
+    if (gA === 'female' && gB === 'female') aLikesB = true;
+    if (gA === 'couple' && gB === 'couple') aLikesB = true;
+    if (gA === 'nonbinary' && gB === 'nonbinary') aLikesB = true;
+  }
+
+  let bLikesA = false;
+  if (oB === 'unspecified' || oB === 'any') {
+    bLikesA = true;
+  } else if (oB === 'bisexual' || oB === 'pansexual') {
+    bLikesA = (gA === 'male' || gA === 'female' || gA === 'nonbinary' || gA === 'couple');
+  } else if (oB === 'heterosexual') {
+    if (gB === 'male' && (gA === 'female' || gA === 'couple')) bLikesA = true;
+    if (gB === 'female' && (gA === 'male' || gA === 'couple')) bLikesA = true;
+    if (gB === 'couple' && (gA === 'male' || gA === 'female')) bLikesA = true;
+  } else if (oB === 'homosexual') {
+    if (gB === 'male' && gA === 'male') bLikesA = true;
+    if (gB === 'female' && gA === 'female') bLikesA = true;
+    if (gB === 'couple' && gA === 'couple') bLikesA = true;
+    if (gB === 'nonbinary' && gA === 'nonbinary') bLikesA = true;
+  }
+
+  return aLikesB && bLikesA;
+}
+
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
@@ -35,6 +79,8 @@ export async function POST(req: NextRequest) {
       age,
       currentRoom,
       isSearchingRandom,
+      orientation,
+      isPremium,
       sendMessage,
       outgoingSignals,
       action
@@ -113,7 +159,9 @@ export async function POST(req: NextRequest) {
         currentRoom: currentRoom,
         isSearchingRandom: !!isSearchingRandom,
         peerId: null,
-        peerName: null
+        peerName: null,
+        orientation: orientation || 'unspecified',
+        isPremium: !!isPremium
       };
       chatStore.users.set(userId, user);
     } else {
@@ -123,6 +171,8 @@ export async function POST(req: NextRequest) {
       if (color) user.color = color;
       if (gender) user.gender = gender;
       if (age) user.age = age;
+      if (orientation) user.orientation = orientation;
+      if (isPremium !== undefined) user.isPremium = isPremium;
       user.currentRoom = currentRoom;
       user.isSearchingRandom = !!isSearchingRandom;
     }
@@ -267,6 +317,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 6. RANDOM MATCHMAKING ENGINE
+    let noCompatibleMatchesLeft = false;
     if (user.isSearchingRandom && !user.peerId) {
       // Find candidate searching for random
       const candidate = Array.from(chatStore.users.values()).find(otherUser => {
@@ -274,7 +325,8 @@ export async function POST(req: NextRequest) {
           otherUser.id !== userId &&
           otherUser.isSearchingRandom &&
           !otherUser.peerId &&
-          now - otherUser.lastActive < activeThreshold
+          now - otherUser.lastActive < activeThreshold &&
+          isCompatible(user, otherUser)
         );
       });
 
@@ -301,7 +353,7 @@ export async function POST(req: NextRequest) {
           fromName: candidate.name,
           to: userId,
           type: 'matched',
-          payload: { isCaller, peer: { id: candidate.id, name: candidate.name, color: candidate.color, gender: candidate.gender, age: candidate.age } },
+          payload: { isCaller, peer: { id: candidate.id, name: candidate.name, color: candidate.color, gender: candidate.gender, age: candidate.age, orientation: candidate.orientation, isPremium: candidate.isPremium } },
           timestamp: now
         });
         chatStore.signalingQueues.set(userId, userQueue);
@@ -312,10 +364,25 @@ export async function POST(req: NextRequest) {
           fromName: user.name,
           to: candidate.id,
           type: 'matched',
-          payload: { isCaller: !isCaller, peer: { id: userId, name: user.name, color: user.color, gender: user.gender, age: user.age } },
+          payload: { isCaller: !isCaller, peer: { id: userId, name: user.name, color: user.color, gender: user.gender, age: user.age, orientation: user.orientation, isPremium: user.isPremium } },
           timestamp: now
         });
         chatStore.signalingQueues.set(candidate.id, candidateQueue);
+      } else {
+        // No match found in the queue. Let's check if there are ANY compatible online users at all.
+        // If not even a single compatible user is online, then there is absolutely no match possible (free).
+        // If they are not Premium, we flag noCompatibleMatchesLeft to show the premium purchase prompt.
+        const anyCompatibleOnline = Array.from(chatStore.users.values()).some(otherUser => {
+          return (
+            otherUser.id !== userId &&
+            now - otherUser.lastActive < activeThreshold &&
+            isCompatible(user, otherUser)
+          );
+        });
+
+        if (!anyCompatibleOnline && !user.isPremium) {
+          noCompatibleMatchesLeft = true;
+        }
       }
     }
 
@@ -362,8 +429,11 @@ export async function POST(req: NextRequest) {
         isSearchingRandom: user.isSearchingRandom,
         peerId: user.peerId,
         peerName: user.peerName,
-        isCaller: user.isCaller
+        isCaller: user.isCaller,
+        orientation: user.orientation,
+        isPremium: user.isPremium
       },
+      noCompatibleMatchesLeft,
       roomUsers,
       messages: currentMessages,
       signals: mySignals,

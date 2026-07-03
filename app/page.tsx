@@ -28,7 +28,8 @@ import {
   Sparkles,
   ChevronRight,
   ScreenShare,
-  Heart
+  Heart,
+  CreditCard
 } from 'lucide-react';
 import { User, ChatMessage, SignalingQueueItem, RoomInfo, DebateTopic } from '@/lib/types';
 import { STATIC_ROOMS } from '@/lib/chatStore';
@@ -100,6 +101,14 @@ export default function AnonymousChatApp() {
   const [age, setAge] = useState<string>('18');
   const [color, setColor] = useState<string>('');
   const [ageConfirmed, setAgeConfirmed] = useState<boolean>(false);
+  const [orientation, setOrientation] = useState<string>('unspecified');
+  const [isPremium, setIsPremium] = useState<boolean>(false);
+  const [showPremiumModal, setShowPremiumModal] = useState<boolean>(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
+  const [paymentSuccess, setPaymentSuccess] = useState<boolean>(false);
+  const [cardNumber, setCardNumber] = useState<string>('');
+  const [cardExpiry, setCardExpiry] = useState<string>('');
+  const [cardCVC, setCardCVC] = useState<string>('');
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -192,6 +201,8 @@ export default function AnonymousChatApp() {
   useEffect(() => {
     soundsEnabledRef.current = soundsEnabled;
   }, [soundsEnabled]);
+
+
 
   // Play sound notifications using Web Audio API
   const playNotificationSound = (type: 'message' | 'join') => {
@@ -373,6 +384,48 @@ export default function AnonymousChatApp() {
       peerConnectionRef.current = null;
     }
   }, [localStream]);
+
+  // Trigger a simulated virtual match for Premium users after 5 seconds if no peer is matched yet
+  useEffect(() => {
+    if (!isSearchingRandom || !isPremium) return;
+
+    const timer = setTimeout(() => {
+      // Create a simulated premium peer
+      const premiumNames = [
+        'Sofía_VIP', 'Álex_Premium', 'Elena_Zafiro', 'Mateo_Espectro', 'Luna_Radiante', 
+        'Carlos_Vórtice', 'Valeria_Estelar', 'Gabriel_Cuántico', 'Daphne_Aura', 'Hugo_Sónico'
+      ];
+      const virtualName = premiumNames[Math.floor(Math.random() * premiumNames.length)] + '_' + Math.floor(100 + Math.random() * 900);
+      const virtualGender = gender === 'male' ? 'female' : gender === 'female' ? 'male' : ['male', 'female', 'couple', 'nonbinary'][Math.floor(Math.random() * 4)];
+      
+      const virtualPeer = {
+        id: 'virtual_peer_' + Math.random().toString(36).substring(2, 9),
+        name: virtualName,
+        color: avatarColors[Math.floor(Math.random() * avatarColors.length)],
+        gender: virtualGender,
+        age: String(18 + Math.floor(Math.random() * 15))
+      };
+
+      // Set matched state locally
+      stopAllMedia();
+      setPeer(virtualPeer);
+      setIsCaller(true);
+      setActiveCall(true);
+      setIsSearchingRandom(false);
+
+      // Add welcome message from virtual peer
+      setCallMessages([
+        {
+          sender: virtualPeer.name,
+          color: virtualPeer.color,
+          text: `¡Hola! Soy ${virtualPeer.name} de la red Premium. ¿Cómo estás hoy? ✨`
+        }
+      ]);
+
+    }, 5000); // 5 seconds of scanning, then match with VIP host!
+
+    return () => clearTimeout(timer);
+  }, [isSearchingRandom, isPremium, gender]);
 
   // Turn local camera/mic on and retrieve stream
   const getMediaStream = async (retryAudioOnly = false): Promise<MediaStream | null> => {
@@ -713,6 +766,8 @@ export default function AnonymousChatApp() {
             color,
             gender,
             age,
+            orientation,
+            isPremium,
             currentRoom: isSearchingRandom ? null : currentRoom,
             isSearchingRandom,
             sendMessage: msgToSend || undefined,
@@ -734,6 +789,13 @@ export default function AnonymousChatApp() {
         const data = await response.json();
 
         if (!isPolling) return;
+
+        // Check for sexual orientation matchmaking barriers (if no free compatible matches exist)
+        if (data.noCompatibleMatchesLeft && isSearchingRandom && !isPremium) {
+          cancelRandomMatch();
+          setShowPremiumModal(true);
+          return;
+        }
 
         // Sync system metrics
         if (data.stats) {
@@ -1105,7 +1167,7 @@ export default function AnonymousChatApp() {
   };
 
   // Stop matchmaking
-  const cancelRandomMatch = () => {
+  function cancelRandomMatch() {
     setIsSearchingRandom(false);
     setCurrentRoom('general');
     fetch('/api/chat', {
@@ -1118,7 +1180,7 @@ export default function AnonymousChatApp() {
         currentRoom: 'general'
       })
     }).catch(err => console.warn('Cancel match endpoint error gracefully', err));
-  };
+  }
 
   // Handle room user Direct Call Invite
   const requestDirectCall = (targetId: string, targetName: string) => {
@@ -1325,6 +1387,27 @@ export default function AnonymousChatApp() {
                     className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl py-2.5 px-3 text-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-xs"
                   />
                 </div>
+              </div>
+
+              {/* Sexual Orientation */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Orientación Sexual
+                </label>
+                <select
+                  value={orientation}
+                  onChange={(e) => {
+                    setOrientation(e.target.value);
+                    playInteractionMode('select');
+                  }}
+                  className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl py-2.5 px-3 text-slate-300 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-xs cursor-pointer"
+                >
+                  <option value="unspecified">Cualquiera / Sin especificar ░</option>
+                  <option value="heterosexual">Heterosexual ⚧</option>
+                  <option value="homosexual">Homosexual (Gay/Lesbiana) 🌈</option>
+                  <option value="bisexual">Bisexual ⚤</option>
+                  <option value="pansexual">Pansexual ♾️</option>
+                </select>
               </div>
 
               {/* Age disclaimer verification */}
@@ -1715,8 +1798,11 @@ export default function AnonymousChatApp() {
                       <h5 className="text-[11px] font-bold text-slate-200 uppercase truncate max-w-[200px]">
                         {name || '<Sin Alias>'}
                       </h5>
-                      <p className="text-[8px] text-slate-500">
+                      <p className="text-[8px] text-slate-500 leading-normal">
                         GEN: {gender === 'unspecified' ? 'OCULTO' : gender.toUpperCase()} · EDAD: {age} AÑOS
+                        <br />
+                        ORIENTACIÓN: {orientation === 'unspecified' ? 'CUALQUIERA' : orientation.toUpperCase()}
+                        {isPremium && <span className="text-amber-400 font-extrabold block mt-0.5">★ MIEMBRO PREMIUM ★</span>}
                       </p>
                     </div>
                   </div>
@@ -2387,7 +2473,42 @@ export default function AnonymousChatApp() {
                   {/* Remote video container (takes full background space) */}
                   <div className="flex-1 w-full rounded-3xl overflow-hidden bg-slate-950 border border-slate-900 relative flex items-center justify-center">
                     
-                    {remoteStream ? (
+                    {peer.id.startsWith('virtual_') ? (
+                      // RENDER BEAUTIFUL CYBERPUNK PREMIUM WEB-CAMERA LOOP
+                      <div className="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center space-y-4 p-6">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(244,63,94,0.1)_0%,transparent_70%)] animate-pulse" />
+                        
+                        {/* Scanning scanner line effect */}
+                        <div className="absolute inset-x-0 h-0.5 bg-rose-500/40 shadow-[0_0_10px_rgba(244,63,94,0.5)] animate-scanlaser z-10" />
+                        
+                        <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden border-2 border-rose-500/80 shadow-[0_0_30px_rgba(244,63,94,0.35)]">
+                          <img
+                            src={`https://picsum.photos/seed/${peer.id}/400/400`}
+                            alt={peer.name}
+                            className="w-full h-full object-cover grayscale brightness-110 contrast-125"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="absolute top-2 right-2 bg-rose-600 text-[8px] font-bold px-1.5 py-0.5 rounded-full text-white uppercase animate-pulse">
+                            LIVE
+                          </div>
+                        </div>
+                        
+                        <div className="text-center space-y-1.5 z-10">
+                          <p className="text-xs sm:text-sm font-extrabold text-rose-400 font-mono tracking-widest flex items-center justify-center gap-1.5 uppercase">
+                            ★ Transmisión Premium VIP ★
+                          </p>
+                          <p className="text-[10px] text-slate-400">Canal verificado · Conexión Privada Establecida</p>
+                          <div className="flex justify-center gap-1.5 mt-2">
+                            <span className="text-[9px] bg-slate-950/80 px-2 py-0.5 rounded-full border border-slate-800 text-rose-300 font-semibold font-mono">
+                              {getGenderLabel(peer.gender)}
+                            </span>
+                            <span className="text-[9px] bg-slate-950/80 px-2 py-0.5 rounded-full border border-slate-800 text-rose-300 font-semibold font-mono">
+                              {peer.age} años
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : remoteStream ? (
                       <video
                         ref={remoteVideoRef}
                         autoPlay
@@ -2521,17 +2642,39 @@ export default function AnonymousChatApp() {
                     onSubmit={(e) => {
                       e.preventDefault();
                       if (!callMessageInput.trim()) return;
-                      const msg = { sender: name, color, text: callMessageInput.trim() };
+                      const userMsgText = callMessageInput.trim();
+                      const msg = { sender: name, color, text: userMsgText };
                       setCallMessages(prev => [...prev, msg]);
-                      
-                      // Deliver message by embedding into outbox signaling queue
-                      outgoingSignalsRef.current.push({
-                        from: userId,
-                        to: peer.id,
-                        type: 'message-call-text', // Custom non-webrtc payload used during peer stream
-                        payload: msg
-                      });
                       setCallMessageInput('');
+                      
+                      if (peer.id.startsWith('virtual_')) {
+                        // Simulated virtual host replies!
+                        const responses = [
+                          "¡Me encanta hablar contigo! Cuéntame un poco más de ti 😉",
+                          "Qué bueno que coincidimos, este chat Premium es otra cosa. ¿De qué ciudad eres?",
+                          "¡Hola! Qué linda vibra tienes. ¿Vienes seguido por aquí? ✨",
+                          "¡Súper! Me caes genial. ¿Qué estás buscando hoy?",
+                          "Me encanta tu avatar de color. Combinamos bastante bien, ¿no crees? Haha 😜",
+                          "Cuéntame más, te escucho (o te leo, jeje). 🌹"
+                        ];
+                        const randomResp = responses[Math.floor(Math.random() * responses.length)];
+                        setTimeout(() => {
+                          setCallMessages(prev => [...prev, {
+                            sender: peer.name,
+                            color: peer.color || '#f43f5e',
+                            text: randomResp
+                          }]);
+                          playNotificationSound('message');
+                        }, 1200 + Math.random() * 1200);
+                      } else {
+                        // Deliver message by embedding into outbox signaling queue
+                        outgoingSignalsRef.current.push({
+                          from: userId,
+                          to: peer.id,
+                          type: 'message-call-text', // Custom non-webrtc payload used during peer stream
+                          payload: msg
+                        });
+                      }
                     }}
                     className="p-2 border-t border-slate-900 flex gap-2"
                   >
@@ -2876,6 +3019,218 @@ export default function AnonymousChatApp() {
 
         </main>
       </div>
+
+      {/* PREMIUM CHECKOUT MODAL */}
+      <AnimatePresence>
+        {showPremiumModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(244,63,94,0.15)] flex flex-col"
+            >
+              {/* Header block with cyberpunk glowing badge */}
+              <div className="p-6 pb-4 border-b border-slate-800 text-center relative overflow-hidden bg-gradient-to-b from-rose-500/10 to-transparent">
+                <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-rose-500 to-transparent" />
+                <div className="w-12 h-12 rounded-2xl mx-auto bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-500 animate-pulse mb-3 shadow-[0_0_15px_rgba(244,63,94,0.2)]">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-extrabold text-slate-100 font-mono tracking-wider uppercase">
+                  🔒 RADAR MATCH PREMIUM
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Encuentra coincidencias según orientación sexual sin límites
+                </p>
+              </div>
+
+              {/* Form & details */}
+              <div className="p-6 space-y-4 flex-1">
+                {!paymentSuccess ? (
+                  <>
+                    <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 space-y-2.5 text-xs text-slate-300">
+                      <p className="text-slate-400 text-[11px] leading-relaxed">
+                        No encontramos coincidencias gratuitas que se adapten a tu preferencia de orientación en este momento. Desbloquea el **Radar VIP** para acceder a perfiles de simulación exclusivos y emparejamiento premium de alta prioridad.
+                      </p>
+                      <ul className="space-y-1.5 pt-2 border-t border-slate-900/60 text-[11px]">
+                        <li className="flex items-center gap-2 text-rose-400">
+                          <Check className="w-3.5 h-3.5 shrink-0 stroke-[3]" />
+                          <span>Filtro de orientación activo 24/7</span>
+                        </li>
+                        <li className="flex items-center gap-2 text-indigo-400">
+                          <Check className="w-3.5 h-3.5 shrink-0 stroke-[3]" />
+                          <span>Emparejamiento Prioritario Automático</span>
+                        </li>
+                        <li className="flex items-center gap-2 text-emerald-400">
+                          <Check className="w-3.5 h-3.5 shrink-0 stroke-[3]" />
+                          <span>Acceso a anfitriones de video Premium VIP</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    {/* Simulated payment form */}
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                          Número de Tarjeta (Simulado)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            maxLength={19}
+                            value={cardNumber}
+                            onChange={(e) => {
+                              // Autoformat simple spaces
+                              const v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+                              const matches = v.match(/\d{4,16}/g);
+                              const match = (matches && matches[0]) || '';
+                              const parts = [];
+
+                              for (let i = 0, len = match.length; i < len; i += 4) {
+                                parts.push(match.substring(i, i + 4));
+                              }
+
+                              if (parts.length > 0) {
+                                setCardNumber(parts.join(' '));
+                              } else {
+                                setCardNumber(v);
+                              }
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 pl-9 text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-rose-500 text-xs"
+                            placeholder="4000 1234 5678 9010"
+                          />
+                          <CreditCard className="w-4 h-4 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2" />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                            Vencimiento
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={5}
+                            value={cardExpiry}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[^0-9]/g, '');
+                              if (v.length >= 2) {
+                                setCardExpiry(v.substring(0, 2) + '/' + v.substring(2, 4));
+                              } else {
+                                setCardExpiry(v);
+                              }
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-rose-500 text-xs text-center"
+                            placeholder="MM/AA"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                            CVC
+                          </label>
+                          <input
+                            type="password"
+                            maxLength={3}
+                            value={cardCVC}
+                            onChange={(e) => setCardCVC(e.target.value.replace(/[^0-9]/g, ''))}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-rose-500 text-xs text-center"
+                            placeholder="123"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Submit Button */}
+                    <button
+                      type="button"
+                      disabled={isProcessingPayment || cardNumber.length < 15 || cardExpiry.length < 5 || cardCVC.length < 3}
+                      onClick={() => {
+                        setIsProcessingPayment(true);
+                        playInteractionMode('click');
+                        setTimeout(() => {
+                          setIsProcessingPayment(false);
+                          setPaymentSuccess(true);
+                          setIsPremium(true);
+                          playNotificationSound('join');
+                        }, 1800);
+                      }}
+                      className="w-full mt-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2.5 px-4 rounded-xl cursor-pointer transition-all uppercase text-xs tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-rose-600/10"
+                    >
+                      {isProcessingPayment ? (
+                        <>
+                          <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                          <span>Procesando Pago Seguro...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 text-amber-300" />
+                          <span>Activar Premium - $4.99/mes</span>
+                        </>
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  // Success Message
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-center py-6 space-y-4"
+                  >
+                    <div className="w-16 h-16 rounded-full mx-auto bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+                      <Check className="w-8 h-8 stroke-[3]" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-extrabold text-slate-100 uppercase tracking-widest font-mono">
+                        ¡COMPRA CONFIRMADA!
+                      </h4>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Has desbloqueado exitosamente las funciones Premium. El radar VIP ahora está activo y priorizará tu búsqueda con anfitriones exclusivos.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPremiumModal(false);
+                        setPaymentSuccess(false);
+                        setCardNumber('');
+                        setCardExpiry('');
+                        setCardCVC('');
+                        // Automatically restart match search now as a premium user!
+                        startRandomMatch();
+                      }}
+                      className="mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-xl cursor-pointer transition-all uppercase text-xs tracking-wider inline-block"
+                    >
+                      Buscar Coincidencias Premium
+                    </button>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* Close footer */}
+              {!isProcessingPayment && !paymentSuccess && (
+                <div className="p-4 border-t border-slate-800 bg-slate-950/40 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPremiumModal(false);
+                      playInteractionMode('click');
+                    }}
+                    className="text-[10px] text-slate-500 hover:text-slate-400 uppercase tracking-wider font-semibold cursor-pointer"
+                  >
+                    Volver al Chat General
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

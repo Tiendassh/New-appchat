@@ -11,6 +11,8 @@ export interface User {
   peerId: string | null; // ID of the matched peer in random chat or direct call
   peerName: string | null;
   isCaller?: boolean; // WebRTC offer creator flag
+  orientation?: string; // Sexual orientation: heterosexual, homosexual, bisexual, any, unspecified
+  isPremium?: boolean; // Premium user status
 }
 
 export interface ChatMessage {
@@ -53,6 +55,8 @@ export interface PollRequest {
   age?: string;
   currentRoom: string | null;
   isSearchingRandom: boolean;
+  orientation?: string;
+  isPremium?: boolean;
   sendMessage?: string; // Text to send to current room
   sendAudioMessage?: string; // Base64 audio string to send to current room
   createDebate?: { title: string; description: string; category: string }; // Payload to start a new debate
