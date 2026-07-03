@@ -117,7 +117,7 @@ export default function AnonymousChatApp() {
   const [lobbyStats, setLobbyStats] = useState({ totalOnline: 1, searchingRandomCount: 0 });
   const [rooms, setRooms] = useState<(RoomInfo & { activeUsers: number })[]>([]);
   const [roomUsers, setRoomUsers] = useState<Partial<User>[]>([]);
-  const [coverTab, setCoverTab] = useState<'chat' | 'debates' | 'photos' | 'match'>('chat');
+  const [coverTab, setCoverTab] = useState<'chat' | 'debates' | 'photos' | 'match' | 'shows'>('chat');
 
   // Debate Forums States (Moved up to prevent early access)
   const [debates, setDebates] = useState<DebateTopic[]>([]);
@@ -1427,6 +1427,20 @@ export default function AnonymousChatApp() {
               >
                 🎯 Match
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCoverTab('shows');
+                  playInteractionMode('select');
+                }}
+                className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer text-center ${
+                  coverTab === 'shows'
+                    ? 'bg-gradient-to-r from-rose-500/10 to-indigo-500/10 border border-indigo-500/20 text-fuchsia-400 font-extrabold'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                ✨ Shows
+              </button>
             </div>
 
             {/* Main Tabs Content */}
@@ -1826,6 +1840,47 @@ export default function AnonymousChatApp() {
                         Al iniciar sesión y usar el <strong className="text-emerald-400">Video Chat Rápido</strong>, nuestro radar emparejará tu perfil 
                         <br/><span className="text-white font-mono bg-slate-900 px-1 py-0.5 rounded ml-1 mr-1">(Género: {gender === 'unspecified' ? '?' : gender.substring(0,3).toUpperCase()}, Edad: {age})</span><br/>
                         con la persona o pareja más afín, según las preferencias en línea.
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* TAB 5: LIVE SHOWS (Simulated) */}
+              {coverTab === 'shows' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-3 flex flex-col justify-between h-full"
+                >
+                  <div className="space-y-2 text-center h-full flex flex-col justify-center items-center">
+                    <h4 className="text-[12px] font-bold text-fuchsia-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                      Shows en Vivo
+                    </h4>
+                    
+                    <div className="relative w-28 h-28 mx-auto flex items-center justify-center mt-2">
+                      {/* Spotlight effects */}
+                      <div className="absolute top-0 -left-10 w-20 h-40 bg-fuchsia-500/10 blur-xl rotate-[30deg] animate-pulse" />
+                      <div className="absolute top-0 -right-10 w-20 h-40 bg-pink-500/10 blur-xl -rotate-[30deg] animate-pulse" style={{ animationDelay: '1s' }} />
+                      
+                      <div className="absolute inset-0 rounded-full border border-dashed border-fuchsia-500/30 animate-[spin_8s_linear_infinite]" />
+                      <div className="w-16 h-16 rounded-full bg-fuchsia-500/10 flex items-center justify-center border border-fuchsia-500/40 shadow-[0_0_20px_rgba(217,70,239,0.3)] z-10">
+                        <Video className="w-7 h-7 text-fuchsia-400" />
+                      </div>
+                      
+                      {/* Viewers particles */}
+                      <div className="absolute -top-2 left-4 w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[10px] animate-bounce" style={{ animationDelay: '0.1s' }}>👁️</div>
+                      <div className="absolute bottom-0 -right-2 w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[10px] animate-bounce" style={{ animationDelay: '0.4s' }}>🔥</div>
+                      <div className="absolute top-10 -left-6 w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[10px] animate-bounce" style={{ animationDelay: '0.7s' }}>✨</div>
+                    </div>
+
+                    <div className="mt-6 px-2 space-y-1.5 text-center flex-1 flex flex-col justify-center">
+                      <p className="text-[10px] text-slate-300 font-bold leading-relaxed uppercase tracking-wider">
+                        Únete a Transmisiones Públicas
+                      </p>
+                      <p className="text-[9px] text-slate-500 leading-relaxed max-w-[240px] mx-auto">
+                        Inicia sesión para descubrir y participar en <strong className="text-fuchsia-400">Shows en vivo</strong> de la comunidad. Puedes ser espectador, enviar reacciones, o iniciar tu propio show público.
                       </p>
                     </div>
                   </div>
