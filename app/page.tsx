@@ -27,7 +27,8 @@ import {
   AlertTriangle,
   Sparkles,
   ChevronRight,
-  ScreenShare
+  ScreenShare,
+  Heart
 } from 'lucide-react';
 import { User, ChatMessage, SignalingQueueItem, RoomInfo, DebateTopic } from '@/lib/types';
 import { STATIC_ROOMS } from '@/lib/chatStore';
@@ -1412,6 +1413,20 @@ export default function AnonymousChatApp() {
               >
                 🖼️ Fotos ID
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCoverTab('match');
+                  playInteractionMode('select');
+                }}
+                className={`flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer text-center ${
+                  coverTab === 'match'
+                    ? 'bg-gradient-to-r from-rose-500/10 to-indigo-500/10 border border-indigo-500/20 text-emerald-400 font-extrabold'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                🎯 Match
+              </button>
             </div>
 
             {/* Main Tabs Content */}
@@ -1773,6 +1788,45 @@ export default function AnonymousChatApp() {
                           <p className="text-[7px] text-slate-500">Pareja, 28a</p>
                         </div>
                       </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* TAB 4: MATCH (Simulated) */}
+              {coverTab === 'match' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-3 flex flex-col justify-between h-full"
+                >
+                  <div className="space-y-2 text-center h-full flex flex-col justify-center items-center">
+                    <h4 className="text-[12px] font-bold text-emerald-400 uppercase tracking-widest mb-2">
+                      Matching Inteligente
+                    </h4>
+                    
+                    <div className="relative w-28 h-28 mx-auto flex items-center justify-center mt-2">
+                      <div className="absolute inset-0 rounded-full border border-dashed border-emerald-500/30 animate-[spin_4s_linear_infinite]" />
+                      <div className="absolute inset-2 rounded-full border border-emerald-500/20 animate-pulse" />
+                      <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                        <Heart className="w-8 h-8 text-emerald-400 animate-bounce" />
+                      </div>
+                      
+                      {/* Floating matching examples */}
+                      <div className="absolute -top-4 -left-4 w-10 h-10 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-xs animate-bounce" style={{ animationDelay: '0.2s' }}>♂</div>
+                      <div className="absolute -bottom-2 -right-4 w-10 h-10 rounded-full bg-pink-500/20 border border-pink-500/40 flex items-center justify-center text-xs animate-bounce" style={{ animationDelay: '0.5s' }}>♀</div>
+                      <div className="absolute -bottom-4 -left-2 w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-xs animate-bounce" style={{ animationDelay: '0.8s' }}>⚤</div>
+                    </div>
+
+                    <div className="mt-6 px-2 space-y-1.5 text-center flex-1 flex flex-col justify-center">
+                      <p className="text-[10px] text-slate-300 font-bold leading-relaxed uppercase tracking-wider">
+                        Conecta por Coincidencias de Perfil
+                      </p>
+                      <p className="text-[9px] text-slate-500 leading-relaxed max-w-[240px] mx-auto">
+                        Al iniciar sesión y usar el <strong className="text-emerald-400">Video Chat Rápido</strong>, nuestro radar emparejará tu perfil 
+                        <br/><span className="text-white font-mono bg-slate-900 px-1 py-0.5 rounded ml-1 mr-1">(Género: {gender === 'unspecified' ? '?' : gender.substring(0,3).toUpperCase()}, Edad: {age})</span><br/>
+                        con la persona o pareja más afín, según las preferencias en línea.
+                      </p>
                     </div>
                   </div>
                 </motion.div>
@@ -2314,55 +2368,75 @@ export default function AnonymousChatApp() {
                     </div>
                   </div>
 
-                  {/* Call Media Controls Deck */}
-                  <div className="h-20 flex items-center justify-center gap-4 mt-4">
+                  {/* Call Media Controls Deck (Zoom-like) */}
+                  <div className="h-24 flex items-center justify-center gap-6 mt-2 bg-slate-950/80 rounded-2xl border border-slate-900 mx-4 md:mx-auto md:w-3/4 max-w-lg mb-2">
                     {/* Camera switch */}
-                    <button
-                      onClick={toggleVideo}
-                      className={`p-3.5 rounded-2xl transition-all cursor-pointer border ${
-                        videoEnabled 
-                          ? 'bg-slate-900 border-slate-800 text-slate-100 hover:bg-slate-800' 
-                          : 'bg-rose-500/10 border-rose-500/30 text-rose-500 hover:bg-rose-500/20'
-                      }`}
-                      title={videoEnabled ? 'Apagar Cámara' : 'Encender Cámara'}
-                    >
-                      {videoEnabled ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
-                    </button>
-
-                    {/* Screen Share switch */}
-                    <button
-                      onClick={toggleScreenShare}
-                      className={`p-3.5 rounded-2xl transition-all cursor-pointer border ${
-                        isScreenSharing 
-                          ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25' 
-                          : 'bg-slate-900 border-slate-800 text-slate-100 hover:bg-slate-800'
-                      }`}
-                      title={isScreenSharing ? 'Detener Compartir Pantalla' : 'Compartir Pantalla'}
-                    >
-                      <ScreenShare className="w-5 h-5" />
-                    </button>
+                    <div className="flex flex-col items-center gap-1.5">
+                      <button
+                        onClick={toggleVideo}
+                        className={`p-4 rounded-full transition-all cursor-pointer border shadow-lg ${
+                          videoEnabled 
+                            ? 'bg-slate-800 border-slate-700 text-slate-100 hover:bg-slate-700' 
+                            : 'bg-rose-600 border-rose-500 text-white hover:bg-rose-500'
+                        }`}
+                        title={videoEnabled ? 'Apagar Cámara' : 'Encender Cámara'}
+                      >
+                        {videoEnabled ? <Video className="w-6 h-6" /> : <VideoOff className="w-6 h-6" />}
+                      </button>
+                      <span className="text-[10px] font-bold text-slate-400">
+                        {videoEnabled ? 'Detener Video' : 'Iniciar Video'}
+                      </span>
+                    </div>
 
                     {/* Mic mute switch */}
-                    <button
-                      onClick={toggleMute}
-                      className={`p-3.5 rounded-2xl transition-all cursor-pointer border ${
-                        audioEnabled 
-                          ? 'bg-slate-900 border-slate-800 text-slate-100 hover:bg-slate-800' 
-                          : 'bg-rose-500/10 border-rose-500/30 text-rose-500 hover:bg-rose-500/20'
-                      }`}
-                      title={audioEnabled ? 'Silenciar Micrófono' : 'Activar Micrófono'}
-                    >
-                      {audioEnabled ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
-                    </button>
+                    <div className="flex flex-col items-center gap-1.5">
+                      <button
+                        onClick={toggleMute}
+                        className={`p-4 rounded-full transition-all cursor-pointer border shadow-lg ${
+                          audioEnabled 
+                            ? 'bg-slate-800 border-slate-700 text-slate-100 hover:bg-slate-700' 
+                            : 'bg-rose-600 border-rose-500 text-white hover:bg-rose-500'
+                        }`}
+                        title={audioEnabled ? 'Silenciar Micrófono' : 'Activar Micrófono'}
+                      >
+                        {audioEnabled ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
+                      </button>
+                      <span className="text-[10px] font-bold text-slate-400">
+                        {audioEnabled ? 'Silenciar' : 'Reactivar'}
+                      </span>
+                    </div>
+
+                    {/* Screen Share switch */}
+                    <div className="flex flex-col items-center gap-1.5">
+                      <button
+                        onClick={toggleScreenShare}
+                        className={`p-4 rounded-full transition-all cursor-pointer border shadow-lg ${
+                          isScreenSharing 
+                            ? 'bg-emerald-500 border-emerald-400 text-white hover:bg-emerald-400 shadow-emerald-500/20' 
+                            : 'bg-slate-800 border-slate-700 text-emerald-400 hover:bg-slate-700'
+                        }`}
+                        title={isScreenSharing ? 'Detener Compartir Pantalla' : 'Compartir Pantalla'}
+                      >
+                        <ScreenShare className="w-6 h-6" />
+                      </button>
+                      <span className="text-[10px] font-bold text-slate-400">
+                        {isScreenSharing ? 'Dejar de Comp.' : 'Compartir'}
+                      </span>
+                    </div>
 
                     {/* Hang up call */}
-                    <button
-                      onClick={() => handleHangup(true)}
-                      className="bg-rose-600 hover:bg-rose-700 hover:scale-[1.05] p-3.5 rounded-2xl text-white transition-all cursor-pointer glow-primary border border-rose-500/30"
-                      title="Finalizar Llamada"
-                    >
-                      <PhoneOff className="w-5 h-5" />
-                    </button>
+                    <div className="flex flex-col items-center gap-1.5 ml-4">
+                      <button
+                        onClick={() => handleHangup(true)}
+                        className="bg-rose-600 hover:bg-rose-500 p-4 rounded-full text-white transition-all cursor-pointer shadow-lg shadow-rose-500/20 border border-rose-500"
+                        title="Finalizar Llamada"
+                      >
+                        <PhoneOff className="w-6 h-6" />
+                      </button>
+                      <span className="text-[10px] font-bold text-rose-400">
+                        Salir
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -2518,12 +2592,26 @@ export default function AnonymousChatApp() {
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
+                          onClick={() => {
+                            const persistenceToken = btoa(encodeURIComponent(`${currentRoom}-${Date.now()}`)).substring(0, 16);
+                            navigator.clipboard.writeText(`${window.location.origin}?session=${persistenceToken}`);
+                            setCallRejectedNotification("Enlace de Confidencialidad y Memoria copiado al portapapeles.");
+                            setTimeout(() => setCallRejectedNotification(null), 4000);
+                          }}
+                          className="flex items-center gap-1.5 py-1.5 px-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:border-emerald-500/40 rounded-full font-bold text-[10px] transition-all cursor-pointer hover:scale-105"
+                          title="Generar enlace de acceso para retomar sesión"
+                        >
+                          <Lock className="w-3.5 h-3.5 shrink-0" />
+                          <span className="hidden sm:inline">Guardar Chat</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => setActiveTab('debates')}
                           className="flex items-center gap-1.5 py-1.5 px-3 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 hover:border-indigo-500/40 rounded-full font-bold text-[10px] transition-all cursor-pointer hover:scale-105"
                           title="Volver a los foros de debate"
                         >
                           <MessageSquare className="w-3.5 h-3.5 shrink-0" />
-                          <span>Ver Foros</span>
+                          <span className="hidden sm:inline">Ver Foros</span>
                         </button>
                         <button
                           type="button"
