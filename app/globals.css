@@ -65,3 +65,32 @@
 .animate-scanlaser {
   animation: scanlaser 4s ease-in-out infinite;
 }
+
+@keyframes float-particle {
+  0% {
+    transform: translateY(110vh) translateX(0px) scale(0.8);
+    opacity: 0;
+  }
+  15% {
+    opacity: var(--max-opacity, 0.4);
+  }
+  85% {
+    opacity: var(--max-opacity, 0.4);
+  }
+  100% {
+    transform: translateY(-10vh) translateX(var(--x-drift, 40px)) scale(1.2);
+    opacity: 0;
+  }
+}
+
+.login-particle {
+  position: absolute;
+  pointer-events: none;
+  animation: float-particle var(--duration, 15s) linear infinite;
+  animation-delay: var(--delay, 0s);
+  width: var(--size, 6px);
+  height: var(--size, 6px);
+  left: var(--left, 10%);
+  filter: blur(1px);
+}
+

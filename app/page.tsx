@@ -1312,6 +1312,37 @@ export default function AnonymousChatApp() {
   if (!hasEntered) {
     return (
       <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-950 relative overflow-hidden" id="login-screen">
+        {/* Animated CSS Particles */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+          {Array.from({ length: 25 }).map((_, idx) => {
+            const left = `${(idx * 7) % 100}%`;
+            const size = `${3 + (idx * 5) % 8}px`;
+            const duration = `${12 + (idx * 8) % 20}s`;
+            const delay = `${-((idx * 11) % 20)}s`;
+            const xDrift = `${-40 + (idx * 13) % 90}px`;
+            const maxOpacity = (0.15 + (idx * 0.05) % 0.4).toFixed(2);
+            const isRose = idx % 2 === 0;
+            const bgClass = isRose 
+              ? "bg-rose-500/30 shadow-[0_0_8px_rgba(244,63,94,0.4)]" 
+              : "bg-indigo-500/30 shadow-[0_0_8px_rgba(99,102,241,0.4)]";
+
+            return (
+              <div
+                key={idx}
+                className={`login-particle rounded-full ${bgClass}`}
+                style={{
+                  '--left': left,
+                  '--size': size,
+                  '--duration': duration,
+                  '--delay': delay,
+                  '--x-drift': xDrift,
+                  '--max-opacity': maxOpacity,
+                } as React.CSSProperties}
+              />
+            );
+          })}
+        </div>
+
         {/* Background Glowing Decors */}
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-500/5 blur-[120px] pointer-events-none" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-rose-500/5 blur-[120px] pointer-events-none" />
