@@ -117,7 +117,7 @@ export default function AnonymousChatApp() {
   const [lobbyStats, setLobbyStats] = useState({ totalOnline: 1, searchingRandomCount: 0 });
   const [rooms, setRooms] = useState<(RoomInfo & { activeUsers: number })[]>([]);
   const [roomUsers, setRoomUsers] = useState<Partial<User>[]>([]);
-  const [coverTab, setCoverTab] = useState<'chat' | 'debates' | 'photos'>('chat');
+  const [coverTab, setCoverTab] = useState<'chat' | 'debates' | 'photos' | 'match'>('chat');
 
   // Debate Forums States (Moved up to prevent early access)
   const [debates, setDebates] = useState<DebateTopic[]>([]);
