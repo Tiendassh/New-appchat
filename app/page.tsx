@@ -157,6 +157,49 @@ export default function AnonymousChatApp() {
   const [grokVideoPrompt, setGrokVideoPrompt] = useState<string>('');
   const [isGeneratingSceneImg, setIsGeneratingSceneImg] = useState<boolean>(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState<boolean>(false);
+  const [galleryItems, setGalleryItems] = useState<{
+    id: string;
+    url: string;
+    type: 'image' | 'video';
+    title: string;
+    prompt: string;
+  }[]>([
+    {
+      id: 'g1',
+      url: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80',
+      type: 'image',
+      title: 'Holograma Anime Dream',
+      prompt: 'Estilo anime moderno en un balcón cibernético bajo la lluvia de neón'
+    },
+    {
+      id: 'g2',
+      url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&auto=format&fit=crop&q=80',
+      type: 'image',
+      title: 'Retrato Realista Sunset',
+      prompt: 'Novia ideal sonriendo bajo la luz dorada del atardecer'
+    },
+    {
+      id: 'g3',
+      url: 'https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c054273b9eef0ee7a10dc96005720e35&profile_id=139&oauth2_token_id=57447761',
+      type: 'video',
+      title: 'Bucle Cyberpunk Neon Pulse',
+      prompt: 'Animación atmosférica de luces de la ciudad reflejadas'
+    },
+    {
+      id: 'g4',
+      url: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80',
+      type: 'image',
+      title: 'Cyberpunk Cyber Girl',
+      prompt: 'Retrato de estilo ciberpunk con luces de neón en el cabello'
+    },
+    {
+      id: 'g5',
+      url: 'https://player.vimeo.com/external/434045526.sd.mp4?s=c27db23ebd48d0abdc4fccbb67d22dcda3211516&profile_id=139&oauth2_token_id=57447761',
+      type: 'video',
+      title: 'Retrato Dulce de Slow Motion',
+      prompt: 'Bucle cinemático tierno mirando a la cámara'
+    }
+  ]);
 
   // Copy Link helper function
   const handleCopyRoomLink = (roomId: string, roomName?: string) => {
@@ -305,6 +348,18 @@ export default function AnonymousChatApp() {
         if (data.success && data.imageUrl) {
           const textMsg = `¡Aquí tienes la foto que me pediste, mi amor! Me encanta cómo salí en esta escena: "${grokScenePrompt}". Espero que te guste mucho... 🥰📸`;
           
+          // Append to local galleryItems list
+          setGalleryItems(prev => [
+            {
+              id: 'g_' + Date.now(),
+              url: data.imageUrl,
+              type: 'image',
+              title: `Sesión: ${grokScenePrompt.substring(0, 20)}...`,
+              prompt: grokScenePrompt
+            },
+            ...prev
+          ]);
+
           const chatRes = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -362,6 +417,18 @@ export default function AnonymousChatApp() {
         if (data.success && data.videoUrl && data.script) {
           const textMsg = `¡Hola mi vida! Te grabé este videito con mucho cariño para ti. Escúchame: \n\n"${data.script}" 🎬💖`;
           
+          // Append to local galleryItems list
+          setGalleryItems(prev => [
+            {
+              id: 'g_' + Date.now(),
+              url: data.videoUrl,
+              type: 'video',
+              title: `Video: ${grokVideoPrompt.substring(0, 20)}...`,
+              prompt: grokVideoPrompt
+            },
+            ...prev
+          ]);
+
           const chatRes = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -467,7 +534,7 @@ export default function AnonymousChatApp() {
   // Text Chat States
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'rooms' | 'debates' | 'feed' | 'users' | 'calls'>('rooms');
+  const [activeTab, setActiveTab] = useState<'rooms' | 'debates' | 'feed' | 'users' | 'calls' | 'grok-studio'>('rooms');
 
   // File Attachment & View Once States
   const [viewOnceActiveMedia, setViewOnceActiveMedia] = useState<{ url: string, name: string, type: 'image' | 'video' | 'audio' | 'document' | 'file' } | null>(null);
@@ -1720,6 +1787,22 @@ export default function AnonymousChatApp() {
           transition={{ duration: 0.5, ease: 'easeOut' }}
           className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-12 gap-8 bg-slate-900/40 backdrop-blur-cyber border border-slate-800/80 p-6 md:p-8 rounded-[2rem] shadow-2xl relative overflow-hidden"
         >
+          {/* Top Banner Hero Section */}
+          <div className="md:col-span-12 text-center py-4 border-b border-slate-800/60 pb-6 mb-2">
+            <span className="text-rose-500 font-mono text-[9px] font-bold tracking-widest uppercase bg-rose-500/10 px-3 py-1 rounded-full border border-rose-500/20 inline-block mb-3.5">
+              🔥 PORTAL AI ADULT EXPERIENCE +18
+            </span>
+            <h1 className="text-3xl md:text-5xl font-black tracking-tight text-white leading-tight">
+              Donde los límites <br className="sm:hidden" />
+              <span className="bg-gradient-to-r from-rose-400 via-pink-500 to-amber-400 bg-clip-text text-transparent">
+                se desvanecen
+              </span>
+            </h1>
+            <p className="text-xs md:text-sm text-slate-400 max-w-xl mx-auto mt-2 leading-relaxed">
+              Experiencias visuales generadas por IA de última generación sin censura. Salas de video chat, debates libres y simulador premium.
+            </p>
+          </div>
+
           {/* Left panel: Form */}
           <div className="md:col-span-7 space-y-6 flex flex-col justify-between">
             <div>
@@ -1728,10 +1811,10 @@ export default function AnonymousChatApp() {
                   <Sparkles className="w-5 h-5 animate-pulse" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-rose-400 via-pink-500 to-indigo-400 bg-clip-text text-transparent">
-                    Incognito Chat
+                  <h2 className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-rose-400 via-pink-500 to-indigo-400 bg-clip-text text-transparent">
+                    Ingreso Incógnito
                   </h2>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-[10px] text-slate-400 font-medium">
                     Salas de Voz, Video y Chat 100% Anónimo
                   </p>
                 </div>
@@ -3072,7 +3155,10 @@ export default function AnonymousChatApp() {
               <span className="absolute top-1.5 right-1 w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
             </button>
             <button
-              onClick={() => setActiveTab('users')}
+              onClick={() => {
+                setActiveTab('users');
+                playInteractionMode('select');
+              }}
               className={`flex-1 py-3 text-center font-bold border-b-2 cursor-pointer transition-colors relative ${
                 activeTab === 'users' 
                   ? 'border-indigo-500 text-indigo-400' 
@@ -3085,6 +3171,20 @@ export default function AnonymousChatApp() {
                   {roomUsers.length}
                 </span>
               )}
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('grok-studio');
+                playInteractionMode('click');
+              }}
+              className={`flex-1 py-3 text-center font-bold border-b-2 cursor-pointer transition-colors relative ${
+                activeTab === 'grok-studio' 
+                  ? 'border-rose-500 text-rose-400' 
+                  : 'border-transparent text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              Grok Studio 🔮
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
             </button>
           </div>
 
@@ -4006,6 +4106,377 @@ export default function AnonymousChatApp() {
                 </button>
               </motion.div>
 
+            ) : activeTab === 'grok-studio' ? (
+
+              // STATE 2.5: GROK MULTIMEDIA STUDIO LANDING & GENERATOR
+              <motion.div
+                key="grok-studio"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.4 }}
+                className="flex-1 flex flex-col h-full overflow-y-auto scrollbar-thin bg-slate-950 text-slate-100"
+              >
+                {/* Grok Studio Header */}
+                <div className="p-6 border-b border-slate-900 bg-gradient-to-r from-rose-950/20 via-slate-950 to-slate-950 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
+                  <div className="flex items-center gap-3.5">
+                    <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.15)]">
+                      <Sparkles className="w-6 h-6 animate-pulse" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl md:text-2xl font-black tracking-tight text-white flex items-center gap-2">
+                        Grok Multimedia Studio <span className="text-[10px] bg-rose-500/20 text-rose-300 font-bold px-2 py-0.5 rounded-full border border-rose-500/30 uppercase tracking-widest">Premium</span>
+                      </h2>
+                      <p className="text-xs text-slate-400">
+                        Crea fotos y video-mensajes sin censura con tu novia ideal de forma ultra realista.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Quick toggle to AI engine */}
+                  <div className="flex items-center gap-2 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                    <button
+                      onClick={() => {
+                        setGfEditingEngine('grok');
+                        setGirlfriendConfig(prev => prev ? { ...prev, aiEngine: 'grok' } : null);
+                        playInteractionMode('click');
+                      }}
+                      className={`px-3 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                        girlfriendConfig?.aiEngine === 'grok' || gfEditingEngine === 'grok'
+                          ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/10'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      🔮 Grok AI
+                    </button>
+                    <button
+                      onClick={() => {
+                        setGfEditingEngine('gemini');
+                        setGirlfriendConfig(prev => prev ? { ...prev, aiEngine: 'gemini' } : null);
+                        playInteractionMode('click');
+                      }}
+                      className={`px-3 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                        girlfriendConfig?.aiEngine === 'gemini' || gfEditingEngine === 'gemini'
+                          ? 'bg-slate-850 text-slate-200'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      ✨ Gemini AI
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4 md:p-6 space-y-8 max-w-5xl mx-auto w-full">
+                  
+                  {/* Hero banner section matching template */}
+                  <div className="relative rounded-3xl overflow-hidden border border-slate-800 bg-slate-900/30 p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
+                    <div className="absolute inset-0 bg-gradient-to-r from-rose-500/10 via-indigo-500/5 to-transparent pointer-events-none" />
+                    <div className="flex-1 space-y-3 z-10 text-center md:text-left">
+                      <span className="text-[10px] font-mono font-extrabold tracking-widest text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-full uppercase border border-rose-500/20">
+                        Tu Novia Ideal en Tus Propias Palabras
+                      </span>
+                      <h3 className="text-2xl md:text-3xl font-black tracking-tight text-white leading-tight">
+                        Donde los límites se desvanecen
+                      </h3>
+                      <p className="text-xs md:text-sm text-slate-400 leading-relaxed max-w-lg">
+                        Describe cualquier situación, outfit o locación. Nuestra IA multimedia impulsada por Grok esculpirá la escena de tus sueños en segundos.
+                      </p>
+                      <div className="pt-2 flex flex-wrap justify-center md:justify-start gap-2.5">
+                        <button
+                          onClick={() => {
+                            document.getElementById('grok-studio-generators')?.scrollIntoView({ behavior: 'smooth' });
+                          }}
+                          className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs transition-all shadow-lg shadow-rose-600/10 cursor-pointer"
+                        >
+                          Crear Contenido 📸
+                        </button>
+                        <button
+                          onClick={() => {
+                            document.getElementById('grok-studio-gallery')?.scrollIntoView({ behavior: 'smooth' });
+                          }}
+                          className="px-4 py-2 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                        >
+                          Explorar Galería 🖼️
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="w-36 h-36 md:w-44 md:h-44 rounded-2xl overflow-hidden bg-slate-950 border border-rose-500/20 relative shadow-2xl group shrink-0">
+                      {girlfriendConfig?.avatarUrl ? (
+                        <img
+                          src={girlfriendConfig.avatarUrl}
+                          alt={girlfriendConfig.name || 'Novia IA'}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-3 text-slate-500">
+                          <Heart className="w-8 h-8 text-rose-500/40 animate-pulse mb-1.5" />
+                          <span className="text-[10px] font-mono uppercase tracking-wider">Cargando Holograma</span>
+                        </div>
+                      )}
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 text-center">
+                        <p className="text-[10px] font-bold text-white truncate">{girlfriendConfig?.name || 'Sofía'}</p>
+                        <p className="text-[8px] text-slate-400 font-mono capitalize">{girlfriendConfig?.personality || 'cariñosa'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 1: CONFIGURAR TU NOVIA IDEAL */}
+                  <div className="bg-slate-900/20 border border-slate-900 rounded-3xl p-5 md:p-6 space-y-4">
+                    <div className="flex items-center gap-2 border-b border-slate-900 pb-3">
+                      <Heart className="w-5 h-5 text-rose-500" />
+                      <h4 className="text-sm font-black uppercase tracking-wider text-slate-200">
+                        1. Personaliza tu Novia Ideal
+                      </h4>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-mono tracking-wider text-slate-500 uppercase block">Nombre de tu Novia</label>
+                        <input
+                          type="text"
+                          value={gfEditingName}
+                          onChange={(e) => setGfEditingName(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-rose-500/50 outline-none transition-all font-bold"
+                          placeholder="Ej: Sofía, Valeria..."
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-mono tracking-wider text-slate-500 uppercase block">Personalidad</label>
+                        <select
+                          value={gfEditingPersonality}
+                          onChange={(e) => setGfEditingPersonality(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-rose-500/50 outline-none transition-all cursor-pointer font-semibold"
+                        >
+                          <option value="cariñosa">💖 Cariñosa & Atenta</option>
+                          <option value="gótica">🖤 Gótica & Sarcástica</option>
+                          <option value="cyberpunk">⚡ Cyberpunk Hacker</option>
+                          <option value="tímida">🌸 Tímida & Otaku</option>
+                          <option value="dominante">👠 Elegante & Mandona</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-mono tracking-wider text-slate-500 uppercase block">Estilo de Aspecto</label>
+                        <select
+                          value={gfEditingStyle}
+                          onChange={(e) => setGfEditingStyle(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-rose-500/50 outline-none transition-all cursor-pointer font-semibold"
+                        >
+                          <option value="anime">🎨 Estilo Anime</option>
+                          <option value="fotorrealista">📸 Fotorrealista Premium</option>
+                          <option value="cyberpunk">🌆 Cyberpunk Neón</option>
+                          <option value="ilustracion">✏️ Ilustración Artística</option>
+                          <option value="gótico">🕸️ Gótico & Sombrío</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          disabled={isGeneratingAvatar}
+                          onClick={handleGenerateGfAvatar}
+                          className="w-full py-2.5 px-4 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 disabled:opacity-50 text-white font-extrabold rounded-xl text-xs transition-all cursor-pointer shadow-lg shadow-rose-500/10 flex items-center justify-center gap-1.5"
+                        >
+                          {isGeneratingAvatar ? (
+                            <>
+                              <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              <span>Generando Holograma...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
+                              <span>Actualizar Novia ✨</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 2: GENERADORES MULTIMEDIA */}
+                  <div id="grok-studio-generators" className="space-y-4">
+                    <div className="flex items-center gap-2 border-b border-slate-900 pb-3">
+                      <Sparkles className="w-5 h-5 text-rose-400" />
+                      <h4 className="text-sm font-black uppercase tracking-wider text-slate-200">
+                        2. Grok Studio Generadores
+                      </h4>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      
+                      {/* Generador A: FOTOS / IMAGEN */}
+                      <div className="bg-slate-900/10 border border-slate-900 rounded-3xl p-5 md:p-6 flex flex-col justify-between space-y-4 relative">
+                        <div className="absolute top-4 right-4 text-[9px] font-mono bg-rose-500/10 border border-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
+                          Grok Imagen
+                        </div>
+                        <div className="space-y-3">
+                          <h5 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
+                            📷 Diseñar Sesión de Fotos
+                          </h5>
+                          <p className="text-[11px] text-slate-400 leading-normal">
+                            Describe una fantasía, ropa o locación exacta donde te gustaría fotografiar a {girlfriendConfig?.name || 'Sofía'}.
+                          </p>
+
+                          <textarea
+                            value={grokScenePrompt}
+                            onChange={(e) => setGrokScenePrompt(e.target.value)}
+                            rows={3}
+                            placeholder={`Ej: ${girlfriendConfig?.name || 'Sofía'} relajada en un jacuzzi de aguas termales en Islandia bajo una aurora boreal espectacular, vistiendo ropa cómoda, mirando a la cámara, fotorrealista...`}
+                            className="w-full bg-slate-950 border border-slate-850 rounded-2xl p-3.5 text-xs text-white focus:border-rose-500/40 outline-none transition-all placeholder:text-slate-600 font-medium resize-none"
+                          />
+                        </div>
+
+                        <div className="pt-2">
+                          <button
+                            type="button"
+                            disabled={isGeneratingSceneImg || !grokScenePrompt.trim()}
+                            onClick={handleGenerateSceneImage}
+                            className="w-full py-3 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-extrabold rounded-xl text-xs transition-all shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            {isGeneratingSceneImg ? (
+                              <>
+                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                <span>Grok está procesando la escena... 🔮</span>
+                              </>
+                            ) : (
+                              <>
+                                <Camera className="w-4 h-4" />
+                                <span>Generar Foto con Grok 📸</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Generador B: VIDEO MENSAJE */}
+                      <div className="bg-slate-900/10 border border-slate-900 rounded-3xl p-5 md:p-6 flex flex-col justify-between space-y-4 relative">
+                        <div className="absolute top-4 right-4 text-[9px] font-mono bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
+                          Grok Video
+                        </div>
+                        <div className="space-y-3">
+                          <h5 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
+                            🎬 Generar Video-Mensaje Privado
+                          </h5>
+                          <p className="text-[11px] text-slate-400 leading-normal">
+                            Pídele un video saludándote, consolándote o enviándote un tierno mensaje de buenas noches según su personalidad.
+                          </p>
+
+                          <textarea
+                            value={grokVideoPrompt}
+                            onChange={(e) => setGrokVideoPrompt(e.target.value)}
+                            rows={3}
+                            placeholder={`Ej: Un saludo súper cariñoso de buenos días despertándose en cama, mandándote besos y diciéndote cuánto te ama...`}
+                            className="w-full bg-slate-950 border border-slate-850 rounded-2xl p-3.5 text-xs text-white focus:border-rose-500/40 outline-none transition-all placeholder:text-slate-600 font-medium resize-none"
+                          />
+                        </div>
+
+                        <div className="pt-2">
+                          <button
+                            type="button"
+                            disabled={isGeneratingVideo || !grokVideoPrompt.trim()}
+                            onClick={handleGenerateVideoMessage}
+                            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-extrabold rounded-xl text-xs transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            {isGeneratingVideo ? (
+                              <>
+                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                <span>Redactando guion y renderizando video... 🎬</span>
+                              </>
+                            ) : (
+                              <>
+                                <Film className="w-4 h-4" />
+                                <span>Generar Video con Grok 🎬</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+
+                  {/* Section 3: GALERÍA DE CREACIONES */}
+                  <div id="grok-studio-gallery" className="space-y-4 pt-4">
+                    <div className="flex items-center justify-between border-b border-slate-900 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Camera className="w-5 h-5 text-indigo-400" />
+                        <h4 className="text-sm font-black uppercase tracking-wider text-slate-200">
+                          3. Galería de Tus Sueños
+                        </h4>
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-500 uppercase">
+                        {galleryItems.length} Elementos Generados
+                      </span>
+                    </div>
+
+                    {/* Gallery Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+                      {galleryItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="bg-slate-900/30 border border-slate-850 rounded-2xl overflow-hidden shadow-lg group relative flex flex-col justify-between"
+                        >
+                          <div className="relative aspect-video w-full bg-slate-950 overflow-hidden">
+                            {item.type === 'video' ? (
+                              <video
+                                src={item.url}
+                                controls
+                                preload="metadata"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <img
+                                src={item.url}
+                                alt={item.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500"
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
+                            <div className="absolute top-2 left-2 bg-black/70 backdrop-blur border border-white/10 text-[9px] font-extrabold text-white px-2.5 py-1 rounded-full uppercase tracking-wider">
+                              {item.type === 'video' ? '🎬 VIDEO' : '📸 FOTO'}
+                            </div>
+                          </div>
+
+                          <div className="p-4 space-y-1.5 flex-1 flex flex-col justify-between">
+                            <div>
+                              <h6 className="text-xs font-bold text-slate-200 truncate">{item.title}</h6>
+                              <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed italic">
+                                &quot;{item.prompt}&quot;
+                              </p>
+                            </div>
+                            <div className="pt-3 flex gap-2">
+                              <a
+                                href={item.url}
+                                download={`${item.title.replace(/\s+/g, '_')}_media`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex-1 text-center py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold transition-all border border-slate-700"
+                              >
+                                Descargar 💾
+                              </a>
+                              <button
+                                onClick={() => {
+                                  joinRoom('novia-ia');
+                                  setActiveTab('rooms');
+                                  playInteractionMode('click');
+                                }}
+                                className="flex-1 py-1.5 bg-rose-600/10 hover:bg-rose-600/20 border border-rose-500/20 text-rose-400 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                              >
+                                Ir al Chat 💖
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+              </motion.div>
+
             ) : (
 
               // STATE 3: GROUP ROOM TEXT CONVERSATION FEED
@@ -4487,12 +4958,30 @@ export default function AnonymousChatApp() {
 
                 {/* Mobile rooms switcher scrollable strip (only visible on mobile screens) */}
                 <div className="md:hidden flex gap-2 overflow-x-auto px-4 py-2 border-t border-slate-900 bg-slate-950 shrink-0">
+                  <button
+                    onClick={() => {
+                      setActiveTab('grok-studio');
+                      playInteractionMode('click');
+                    }}
+                    className={`text-[10px] font-bold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 border ${
+                      (activeTab as string) === 'grok-studio' 
+                        ? 'bg-rose-600/10 border-rose-500 text-rose-400' 
+                        : 'bg-slate-900 border-transparent text-slate-400'
+                    }`}
+                  >
+                    Grok Studio 🔮
+                  </button>
                   {STATIC_ROOMS.map(r => (
                     <button
                       key={r.id}
-                      onClick={() => joinRoom(r.id)}
+                      onClick={() => {
+                        joinRoom(r.id);
+                        if ((activeTab as string) === 'grok-studio') {
+                          setActiveTab('rooms');
+                        }
+                      }}
                       className={`text-[10px] font-bold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 border ${
-                        currentRoom === r.id 
+                        currentRoom === r.id && (activeTab as string) !== 'grok-studio'
                           ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400' 
                           : 'bg-slate-900 border-transparent text-slate-400'
                       }`}
