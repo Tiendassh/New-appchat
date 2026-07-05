@@ -62,11 +62,17 @@
 </head>
 <body>
     <div id="loader" class="loader"></div>
+    <div id="controls" style="position: absolute; top: 10px; right: 10px; z-index: 20; display: flex; gap: 8px;">
+        <button onclick="togglePopout()" class="btn" style="padding: 0.5rem 1rem; font-size: 0.7rem; box-shadow: none; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2);">Pop-out ↗️</button>
+    </div>
     <div id="error-container">
         <div class="icon">⚠️</div>
-        <h1>Error de Conexión</h1>
-        <p>Este contenido está bloqueado por el servidor de streaming o las políticas de seguridad de AI Studio.</p>
-        <a id="direct-link" href="#" target="_blank" class="btn">Abrir en Pestaña Nueva</a>
+        <h1>Contenido Restringido</h1>
+        <p>Este servidor de video (SpankBang/xHamster) bloquea la reproducción dentro de AI Studio por seguridad.</p>
+        <div style="display: flex; gap: 10px;">
+            <a id="direct-link" href="#" target="_blank" class="btn">Abrir en Pestaña</a>
+            <button onclick="tryBypass()" class="btn" style="background: linear-gradient(to right, #4f46e5, #c026d3);">Bypass Seguro</button>
+        </div>
     </div>
     
     <iframe id="player" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
@@ -79,21 +85,33 @@
         const errorContainer = document.getElementById('error-container');
         const directLink = document.getElementById('direct-link');
         
+        function togglePopout() {
+            window.open(window.location.href, '_blank', 'width=1280,height=720');
+        }
+
+        function tryBypass() {
+            // Some embeds work better if loaded directly in a new window
+            if (videoUrl) {
+                window.open(decodeURIComponent(videoUrl), '_blank');
+            }
+        }
+
         if (videoUrl) {
             const decodedUrl = decodeURIComponent(videoUrl);
             player.src = decodedUrl;
             directLink.href = decodedUrl;
             
-            // Timeout to check if content failed to load (common with X-Frame-Options: DENY)
-            // Note: We can't actually detect the error in iframe cross-origin, 
-            // but we can provide the link as a fallback if it takes too long or stays empty.
-            setTimeout(() => {
+            // Show error container if it takes too long (heuristic for blocked frames)
+            const timeout = setTimeout(() => {
                 loader.style.display = 'none';
-            }, 3000);
+                errorContainer.style.display = 'flex';
+            }, 5000);
             
-            // If the user clicks the link, we assume they need it
             player.onload = () => {
+                clearTimeout(timeout);
                 loader.style.display = 'none';
+                // If it loaded, we hide error just in case it was showing
+                errorContainer.style.display = 'none';
             };
         } else {
             loader.style.display = 'none';

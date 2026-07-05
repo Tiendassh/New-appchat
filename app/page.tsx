@@ -644,8 +644,8 @@ export default function AnonymousChatApp() {
   const [customVideoTitle, setCustomVideoTitle] = useState<string>('');
   const [videoFilter, setVideoFilter] = useState<string>('Todos');
   const [videoSearch, setVideoSearch] = useState<string>('');
-  const [proxyServerUrl, setProxyServerUrl] = useState<string>('https://new-appchat.onrender.com');
-  const [playerMode, setPlayerMode] = useState<'integrated' | 'proxy' | 'external'>('proxy');
+  const [proxyServerUrl, setProxyServerUrl] = useState<string>('');
+  const [playerMode, setPlayerMode] = useState<'integrated' | 'proxy' | 'external'>('integrated');
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
 
   // File Attachment & View Once States
@@ -4309,11 +4309,11 @@ export default function AnonymousChatApp() {
                             }}
                             className={`py-1.5 px-3 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
                               playerMode === 'integrated'
-                                ? 'bg-fuchsia-500/10 border-fuchsia-500 text-fuchsia-400 font-black'
+                                ? 'bg-indigo-500/10 border-indigo-500 text-indigo-400 font-black'
                                 : 'bg-slate-900/40 border-transparent text-slate-500 hover:text-slate-400'
                             }`}
                           >
-                            📹 Reproductor Local
+                            📹 Reproductor del Sitio
                           </button>
                           <button
                             type="button"
@@ -4327,7 +4327,7 @@ export default function AnonymousChatApp() {
                                 : 'bg-slate-900/40 border-transparent text-slate-500 hover:text-slate-400'
                             }`}
                           >
-                            🚀 Proxy en Render
+                            🚀 Servidor Externo (Proxy)
                           </button>
                           <button
                             type="button"
@@ -4386,13 +4386,13 @@ export default function AnonymousChatApp() {
                               </p>
                             </div>
                             <a
-                              href={`${proxyServerUrl.replace(/\/$/, '')}/player.html?url=${encodeURIComponent(selectedVideo.embedUrl)}`}
+                              href={`/player.html?url=${encodeURIComponent(selectedVideo.embedUrl)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={() => playInteractionMode('click')}
                               className="inline-flex items-center gap-2 bg-gradient-to-r from-fuchsia-600 to-rose-600 hover:from-fuchsia-500 hover:to-rose-500 text-white font-extrabold px-6 py-3 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-fuchsia-600/20 hover:scale-105 transition-all cursor-pointer"
                             >
-                              Abrir Player en Render <ExternalLink className="w-4 h-4" />
+                              Abrir Player Maestro <ExternalLink className="w-4 h-4" />
                             </a>
                             <div className="text-[10px] text-slate-500 flex gap-4">
                               <a
@@ -4417,12 +4417,12 @@ export default function AnonymousChatApp() {
                           </p>
                           <span className="hidden sm:inline text-slate-700">|</span>
                           <a
-                            href={`${proxyServerUrl.replace(/\/$/, '')}/player.html?url=${encodeURIComponent(selectedVideo.embedUrl)}`}
+                            href={`/player.html?url=${encodeURIComponent(selectedVideo.embedUrl)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-fuchsia-400 hover:text-fuchsia-300 flex items-center gap-1 font-bold underline transition-colors"
                           >
-                            Abrir en Render <ExternalLink className="w-3.5 h-3.5" />
+                            Abrir Player Maestro <ExternalLink className="w-3.5 h-3.5" />
                           </a>
                         </div>
                         <div className="flex items-center gap-4">
