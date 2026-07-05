@@ -37,6 +37,12 @@ import {
   FileText,
   Download,
   PlusCircle,
+  ExternalLink,
+  Globe,
+  Settings,
+  Link,
+  Monitor,
+  Info,
   Image as ImageIcon
 } from 'lucide-react';
 import { User, ChatMessage, SignalingQueueItem, RoomInfo, DebateTopic, ConfessionStory } from '@/lib/types';
@@ -638,6 +644,9 @@ export default function AnonymousChatApp() {
   const [customVideoTitle, setCustomVideoTitle] = useState<string>('');
   const [videoFilter, setVideoFilter] = useState<string>('Todos');
   const [videoSearch, setVideoSearch] = useState<string>('');
+  const [proxyServerUrl, setProxyServerUrl] = useState<string>('https://peivatechat.onrender.com');
+  const [playerMode, setPlayerMode] = useState<'integrated' | 'proxy' | 'external'>('proxy');
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
 
   // File Attachment & View Once States
   const [viewOnceActiveMedia, setViewOnceActiveMedia] = useState<{ url: string, name: string, type: 'image' | 'video' | 'audio' | 'document' | 'file' } | null>(null);
@@ -3106,6 +3115,17 @@ export default function AnonymousChatApp() {
 
           <button
             onClick={() => {
+              setShowSettingsModal(true);
+              playInteractionMode('click');
+            }}
+            className="p-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer"
+            title="Configuración de Proxy y Enlaces"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => {
               stopAllMedia();
               // Notify server of departure
               fetch('/api/chat', {
@@ -4255,8 +4275,8 @@ export default function AnonymousChatApp() {
                 <div className="p-6 space-y-6">
                   {/* Active Player (if selected) */}
                   {selectedVideo && (
-                    <div className="bg-slate-900/60 border border-fuchsia-500/30 rounded-3xl overflow-hidden shadow-2xl p-4 space-y-4 animate-fadeIn">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="bg-slate-900/60 border border-fuchsia-500/30 rounded-3xl overflow-hidden shadow-2xl p-5 space-y-4 animate-fadeIn">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-2">
                         <div className="flex items-center gap-2.5">
                           <span className="w-2.5 h-2.5 rounded-full bg-fuchsia-500 animate-ping shrink-0" />
                           <h3 className="text-sm font-black text-white uppercase tracking-wider">{selectedVideo.title}</h3>
@@ -4264,32 +4284,147 @@ export default function AnonymousChatApp() {
                             {selectedVideo.category}
                           </span>
                         </div>
-                        <button
-                          onClick={() => {
-                            setSelectedVideo(null);
-                            playInteractionMode('click');
-                          }}
-                          className="p-1.5 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white rounded-full transition-colors cursor-pointer shrink-0"
-                          title="Cerrar Reproductor"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <button
+                            onClick={() => {
+                              setSelectedVideo(null);
+                              playInteractionMode('click');
+                            }}
+                            className="p-1.5 bg-slate-950 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white rounded-full transition-colors cursor-pointer shrink-0"
+                            title="Cerrar Reproductor"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-slate-950 shadow-inner">
-                        <iframe
-                          src={`/player.html?url=${encodeURIComponent(selectedVideo.embedUrl)}`}
-                          className="absolute inset-0 w-full h-full border-none"
-                          allowFullScreen
-                          allow="autoplay; encrypted-media; picture-in-picture"
-                        />
+                      {/* Player Options Selector */}
+                      <div className="flex flex-col xl:flex-row gap-4 items-center justify-between bg-slate-950/60 p-3 rounded-2xl border border-slate-850">
+                        <div className="flex flex-wrap gap-1.5 w-full xl:w-auto">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPlayerMode('integrated');
+                              playInteractionMode('select');
+                            }}
+                            className={`py-1.5 px-3 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                              playerMode === 'integrated'
+                                ? 'bg-fuchsia-500/10 border-fuchsia-500 text-fuchsia-400 font-black'
+                                : 'bg-slate-900/40 border-transparent text-slate-500 hover:text-slate-400'
+                            }`}
+                          >
+                            📹 Reproductor Local
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPlayerMode('proxy');
+                              playInteractionMode('select');
+                            }}
+                            className={`py-1.5 px-3 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                              playerMode === 'proxy'
+                                ? 'bg-fuchsia-500/10 border-fuchsia-500 text-fuchsia-400 font-black'
+                                : 'bg-slate-900/40 border-transparent text-slate-500 hover:text-slate-400'
+                            }`}
+                          >
+                            🚀 Proxy en Render
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPlayerMode('external');
+                              playInteractionMode('select');
+                            }}
+                            className={`py-1.5 px-3 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                              playerMode === 'external'
+                                ? 'bg-fuchsia-500/10 border-fuchsia-500 text-fuchsia-400 font-black'
+                                : 'bg-slate-900/40 border-transparent text-slate-500 hover:text-slate-400'
+                            }`}
+                          >
+                            ↗️ Ventana Externa
+                          </button>
+                        </div>
+
+                        {/* Config proxy address directly in player */}
+                        <div className="flex items-center gap-2 w-full xl:w-auto">
+                          <Globe className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          <input
+                            type="text"
+                            value={proxyServerUrl}
+                            onChange={(e) => setProxyServerUrl(e.target.value)}
+                            placeholder="URL de tu sitio en Render (ej. https://peivatechat.onrender.com)"
+                            className="w-full xl:w-64 bg-slate-900 border border-slate-800 rounded-lg py-1 px-2.5 text-[10px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-fuchsia-500 transition-colors"
+                          />
+                        </div>
                       </div>
 
+                      {/* Display Screen based on Mode */}
+                      <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-slate-950 shadow-inner flex flex-col items-center justify-center">
+                        {playerMode === 'integrated' ? (
+                          <iframe
+                            src={`/player.html?url=${encodeURIComponent(selectedVideo.embedUrl)}`}
+                            className="absolute inset-0 w-full h-full border-none"
+                            allowFullScreen
+                            allow="autoplay; encrypted-media; picture-in-picture"
+                          />
+                        ) : playerMode === 'proxy' ? (
+                          <iframe
+                            src={`${proxyServerUrl.replace(/\/$/, '')}/player.html?url=${encodeURIComponent(selectedVideo.embedUrl)}`}
+                            className="absolute inset-0 w-full h-full border-none"
+                            allowFullScreen
+                            allow="autoplay; encrypted-media; picture-in-picture"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center space-y-4 bg-gradient-to-b from-slate-950 to-fuchsia-950/20">
+                            <div className="w-16 h-16 rounded-full bg-fuchsia-600/10 border border-fuchsia-500/30 flex items-center justify-center text-fuchsia-400 animate-pulse shadow-lg shadow-fuchsia-500/10">
+                              <ExternalLink className="w-8 h-8" />
+                            </div>
+                            <div className="max-w-md space-y-1">
+                              <h4 className="text-sm font-black text-white">Modo Ventana Externa Seguro</h4>
+                              <p className="text-xs text-slate-400">
+                                Al abrir el show en una ventana independiente, se evitan las restricciones de cookies de terceros y el bloqueo de CORS del navegador.
+                              </p>
+                            </div>
+                            <a
+                              href={`${proxyServerUrl.replace(/\/$/, '')}/player.html?url=${encodeURIComponent(selectedVideo.embedUrl)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => playInteractionMode('click')}
+                              className="inline-flex items-center gap-2 bg-gradient-to-r from-fuchsia-600 to-rose-600 hover:from-fuchsia-500 hover:to-rose-500 text-white font-extrabold px-6 py-3 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-fuchsia-600/20 hover:scale-105 transition-all cursor-pointer"
+                            >
+                              Abrir Player en Render <ExternalLink className="w-4 h-4" />
+                            </a>
+                            <div className="text-[10px] text-slate-500 flex gap-4">
+                              <a
+                                href={selectedVideo.embedUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="underline hover:text-slate-300"
+                              >
+                                Enlace directo al embed original
+                              </a>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer & Fallback Link */}
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
-                        <p className="flex items-center gap-1">
-                          <span>Proveedor original:</span>
-                          <span className="font-extrabold text-slate-200">{selectedVideo.source}</span>
-                        </p>
+                        <div className="flex flex-col sm:flex-row items-center gap-2">
+                          <p className="flex items-center gap-1">
+                            <span>Proveedor original:</span>
+                            <span className="font-extrabold text-slate-200">{selectedVideo.source}</span>
+                          </p>
+                          <span className="hidden sm:inline text-slate-700">|</span>
+                          <a
+                            href={`${proxyServerUrl.replace(/\/$/, '')}/player.html?url=${encodeURIComponent(selectedVideo.embedUrl)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-fuchsia-400 hover:text-fuchsia-300 flex items-center gap-1 font-bold underline transition-colors"
+                          >
+                            Abrir en Render <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        </div>
                         <div className="flex items-center gap-4">
                           <span className="flex items-center gap-1">
                             <Eye className="w-3.5 h-3.5 text-fuchsia-400" />
@@ -4300,6 +4435,17 @@ export default function AnonymousChatApp() {
                           </span>
                         </div>
                       </div>
+
+                      {/* Browser warning banner if using integrated */}
+                      {(playerMode === 'integrated' || playerMode === 'proxy') && (
+                        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-300 p-3 rounded-xl text-[10px] leading-relaxed flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-extrabold block">¿No carga el video?</span>
+                            Muchos servidores de streaming bloquean que sus videos se carguen dentro de la ventana de diseño de AI Studio. Cambia al modo <strong className="text-fuchsia-300 font-extrabold">Proxy en Render</strong> o haz clic en <strong className="text-fuchsia-300 font-extrabold">Abrir en Render</strong> arriba para reproducirlo sin restricciones.
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -5341,31 +5487,53 @@ export default function AnonymousChatApp() {
                 </div>
 
                 {/* Mobile rooms switcher scrollable strip (only visible on mobile screens) */}
-                <div className="md:hidden flex gap-2 overflow-x-auto px-4 py-2 border-t border-slate-900 bg-slate-950 shrink-0">
+                <div className="md:hidden flex gap-2 overflow-x-auto px-4 py-2 border-t border-slate-900 bg-slate-950 shrink-0 scrollbar-hide">
+                  <button
+                    onClick={() => {
+                      setActiveTab('shows');
+                      playInteractionMode('click');
+                    }}
+                    className={`text-[10px] font-bold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 border flex items-center gap-1.5 ${
+                      (activeTab as string) === 'shows' 
+                        ? 'bg-fuchsia-600/10 border-fuchsia-500 text-fuchsia-400' 
+                        : 'bg-slate-900 border-transparent text-slate-400'
+                    }`}
+                  >
+                    <Video className="w-3 h-3" /> Shows 🎥
+                  </button>
                   <button
                     onClick={() => {
                       setActiveTab('grok-studio');
                       playInteractionMode('click');
                     }}
-                    className={`text-[10px] font-bold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 border ${
+                    className={`text-[10px] font-bold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 border flex items-center gap-1.5 ${
                       (activeTab as string) === 'grok-studio' 
                         ? 'bg-rose-600/10 border-rose-500 text-rose-400' 
                         : 'bg-slate-900 border-transparent text-slate-400'
                     }`}
                   >
-                    Grok Studio 🔮
+                    <Sparkles className="w-3 h-3" /> Grok Studio 🔮
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowSettingsModal(true);
+                      playInteractionMode('click');
+                    }}
+                    className="text-[10px] font-bold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 border bg-slate-900 border-transparent text-slate-400 flex items-center gap-1.5"
+                  >
+                    <Settings className="w-3 h-3" /> Config
                   </button>
                   {STATIC_ROOMS.map(r => (
                     <button
                       key={r.id}
                       onClick={() => {
                         joinRoom(r.id);
-                        if ((activeTab as string) === 'grok-studio') {
+                        if ((activeTab as string) === 'grok-studio' || (activeTab as string) === 'shows') {
                           setActiveTab('rooms');
                         }
                       }}
                       className={`text-[10px] font-bold px-3 py-1.5 rounded-full whitespace-nowrap shrink-0 border ${
-                        currentRoom === r.id && (activeTab as string) !== 'grok-studio'
+                        currentRoom === r.id && (activeTab as string) !== 'grok-studio' && (activeTab as string) !== 'shows'
                           ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400' 
                           : 'bg-slate-900 border-transparent text-slate-400'
                       }`}
@@ -6128,6 +6296,143 @@ export default function AnonymousChatApp() {
                 >
                   🔒 Destruir y Cerrar Ahora
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* GLOBAL SETTINGS MODAL */}
+      <AnimatePresence>
+        {showSettingsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.9, y: 20, opacity: 0 }}
+              className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-[32px] overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+                    <Settings className="w-5 h-5 text-indigo-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white uppercase tracking-tight">Configuración del Sitio</h3>
+                    <p className="text-[10px] text-slate-500 font-medium">Vincula tu servidor de Render para mejorar la reproducción</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSettingsModal(false)}
+                  className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-all cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                
+                {/* Proxy Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-fuchsia-400" />
+                    <h4 className="text-xs font-black text-slate-200 uppercase tracking-wider">Proxy de Video (Render)</h4>
+                  </div>
+                  
+                  <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-4 space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center justify-between">
+                        <span>URL del Servidor Render</span>
+                        {proxyServerUrl.includes('render.com') && (
+                          <span className="text-emerald-400 flex items-center gap-0.5">
+                            <Check className="w-2.5 h-2.5" /> Detectado
+                          </span>
+                        )}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={proxyServerUrl}
+                          onChange={(e) => setProxyServerUrl(e.target.value)}
+                          placeholder="https://tu-app.onrender.com"
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 px-4 text-xs text-white focus:outline-none focus:border-indigo-500 transition-all font-mono"
+                        />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                          <Link className="w-3.5 h-3.5 text-slate-600" />
+                        </div>
+                      </div>
+                      <p className="text-[9px] text-slate-500 leading-relaxed">
+                        Este enlace se usa para el archivo <strong>player.html</strong>. Es necesario para saltar las restricciones de seguridad de AI Studio y SpankBang.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Modo de Reproducción por Defecto</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => setPlayerMode('proxy')}
+                          className={`py-2 px-3 rounded-xl border text-[10px] font-bold transition-all flex flex-col items-center gap-1 ${
+                            playerMode === 'proxy' 
+                              ? 'bg-fuchsia-600/10 border-fuchsia-500 text-fuchsia-400' 
+                              : 'bg-slate-900 border-transparent text-slate-500 hover:bg-slate-850'
+                          }`}
+                        >
+                          <Globe className="w-4 h-4" />
+                          <span>Usar Render (Proxy)</span>
+                        </button>
+                        <button
+                          onClick={() => setPlayerMode('integrated')}
+                          className={`py-2 px-3 rounded-xl border text-[10px] font-bold transition-all flex flex-col items-center gap-1 ${
+                            playerMode === 'integrated' 
+                              ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400' 
+                              : 'bg-slate-900 border-transparent text-slate-500 hover:bg-slate-850'
+                          }`}
+                        >
+                          <Monitor className="w-4 h-4" />
+                          <span>Local (Iframe)</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Info Box */}
+                <div className="bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-indigo-400">
+                    <Info className="w-4 h-4 shrink-0" />
+                    <span className="text-[10px] font-black uppercase tracking-wider">Instrucciones de Vinculación</span>
+                  </div>
+                  <ol className="text-[9px] text-slate-400 space-y-1.5 list-decimal list-inside leading-relaxed">
+                    <li>Sube este repositorio a tu cuenta de GitHub.</li>
+                    <li>Crea un nuevo <strong className="text-slate-200">Static Site</strong> en Render.</li>
+                    <li>Conecta el repositorio y despliega.</li>
+                    <li>Copia la URL que te de Render y pégala aquí arriba.</li>
+                    <li>¡Listo! Los videos se reproducirán usando el proxy de tu propio dominio.</li>
+                  </ol>
+                </div>
+
+                <div className="pt-4 flex flex-col gap-3">
+                  <button
+                    onClick={() => {
+                      setShowSettingsModal(false);
+                      playInteractionMode('click');
+                    }}
+                    className="w-full py-3 bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:from-indigo-500 hover:to-fuchsia-500 text-white font-black rounded-2xl text-xs uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+                  >
+                    Guardar y Aplicar Configuración
+                  </button>
+                  <p className="text-[8px] text-slate-600 text-center">
+                    La configuración se guarda localmente en tu navegador.
+                  </p>
+                </div>
               </div>
             </motion.div>
           </motion.div>

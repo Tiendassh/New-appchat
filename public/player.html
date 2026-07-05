@@ -1,20 +1,106 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Video Player Proxy</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incognito Video Player</title>
     <style>
-        * { margin: 0; padding: 0; overflow: hidden; background: #000; width: 100%; height: 100%; }
-        html, body, iframe { width: 100%; height: 100%; border: none; }
+        * { margin: 0; padding: 0; overflow: hidden; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        iframe { width: 100%; height: 100%; border: none; }
+        
+        #error-container {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: #f1f5f9;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+            z-index: 10;
+        }
+        
+        .icon { font-size: 3rem; margin-bottom: 1rem; }
+        h1 { font-size: 1.25rem; font-weight: 800; margin-bottom: 0.5rem; color: #fff; }
+        p { font-size: 0.875rem; color: #94a3b8; max-width: 300px; margin-bottom: 2rem; line-height: 1.5; }
+        
+        .btn {
+            display: inline-block;
+            background: linear-gradient(to right, #c026d3, #e11d48);
+            color: #fff;
+            text-decoration: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            transition: all 0.2s;
+            box-shadow: 0 10px 15px -3px rgba(192, 38, 211, 0.3);
+        }
+        
+        .btn:hover { transform: scale(1.05); filter: brightness(1.1); }
+        
+        .loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(192, 38, 211, 0.1);
+            border-top-color: #c026d3;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
     </style>
 </head>
 <body>
-    <iframe id="player" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture"></iframe>
+    <div id="loader" class="loader"></div>
+    <div id="error-container">
+        <div class="icon">⚠️</div>
+        <h1>Error de Conexión</h1>
+        <p>Este contenido está bloqueado por el servidor de streaming o las políticas de seguridad de AI Studio.</p>
+        <a id="direct-link" href="#" target="_blank" class="btn">Abrir en Pestaña Nueva</a>
+    </div>
+    
+    <iframe id="player" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+    
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const videoUrl = urlParams.get('url');
+        const player = document.getElementById('player');
+        const loader = document.getElementById('loader');
+        const errorContainer = document.getElementById('error-container');
+        const directLink = document.getElementById('direct-link');
+        
         if (videoUrl) {
-            document.getElementById('player').src = decodeURIComponent(videoUrl);
+            const decodedUrl = decodeURIComponent(videoUrl);
+            player.src = decodedUrl;
+            directLink.href = decodedUrl;
+            
+            // Timeout to check if content failed to load (common with X-Frame-Options: DENY)
+            // Note: We can't actually detect the error in iframe cross-origin, 
+            // but we can provide the link as a fallback if it takes too long or stays empty.
+            setTimeout(() => {
+                loader.style.display = 'none';
+            }, 3000);
+            
+            // If the user clicks the link, we assume they need it
+            player.onload = () => {
+                loader.style.display = 'none';
+            };
+        } else {
+            loader.style.display = 'none';
+            errorContainer.style.display = 'flex';
+            errorContainer.querySelector('h1').innerText = 'No se encontró la URL';
+            errorContainer.querySelector('p').innerText = 'Por favor selecciona un video válido desde la aplicación.';
+            directLink.style.display = 'none';
         }
     </script>
 </body>
