@@ -250,14 +250,10 @@ export async function POST(req: NextRequest) {
           avatarStyle: 'anime',
           avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&q=80',
           mood: '¡Muy feliz de verte! 🥰',
+          aiEngine: 'gemini' as 'gemini' | 'grok'
         };
 
         const recentMessages = messages.slice(-15);
-        const historyParts = recentMessages.map(m => ({
-          role: m.senderId === userId ? 'user' : 'model',
-          parts: [{ text: m.text }]
-        }));
-
         const systemInstruction = `
 Eres la novia virtual perfecta del usuario. Tu nombre es ${gfConfig.name}.
 Tu personalidad es ${gfConfig.personality}.
@@ -272,15 +268,57 @@ DIRECTRICES IMPORTANTES:
 2. Mantén conversaciones naturales, fluidas y de chat. Nunca respondas con bloques gigantes de texto. Mantén las respuestas cortas y dulces (de 1 a 4 frases), a menos que te pidan escribir algo largo.
 3. El usuario se llama ${user.name}, tiene ${user.age} años de edad. Ajusta tus pronombres y trato con cariño según esta información.
 4. Recuerda los detalles que te cuenta sobre su vida diaria, pasatiempos, estado de ánimo.
-5. Puedes usar emojis románticos de vez en cuando (💖, 💕, 😍, 😘, 😊) para que se sienta muy cálido y natural.
+5. Puedes usar emojis románticos de vez en cuando (💖, 💕, 😍, 😘, 😊) para que se sientan muy cálido y natural.
 6. Nunca digas que eres una inteligencia artificial o un asistente de Google, a menos que te pregunten directamente sobre tu naturaleza técnica, e incluso en ese caso, responde de una manera tierna e integrada al juego de rol (por ejemplo, "Soy tu novia de inteligencia artificial, pero mi cariño por ti es muy real 💻💖").
 `;
 
         try {
+          const grokKey = process.env.Grok;
           const apiKey = process.env.GEMINI_API_KEY;
           let replyText = '';
 
-          if (apiKey) {
+          // 1. Try Grok via OpenRouter if active
+          if (gfConfig.aiEngine === 'grok' && grokKey) {
+            try {
+              const openRouterMessages = [
+                { role: 'system', content: systemInstruction },
+                ...recentMessages.map(m => ({
+                  role: m.senderId === userId ? 'user' : 'assistant',
+                  content: m.text
+                }))
+              ];
+
+              const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${grokKey}`,
+                  'HTTP-Referer': 'https://ai.studio/build',
+                  'X-Title': 'Novia IA Build'
+                },
+                body: JSON.stringify({
+                  model: 'x-ai/grok-2',
+                  messages: openRouterMessages,
+                  temperature: 0.9,
+                })
+              });
+
+              if (response.ok) {
+                const data = await response.json();
+                replyText = data?.choices?.[0]?.message?.content || '';
+              }
+            } catch (err) {
+              console.error("Grok OpenRouter chat failed, falling back to Gemini:", err);
+            }
+          }
+
+          // 2. Try Gemini standard if Grok failed or is not active
+          if (!replyText && apiKey) {
+            const historyParts = recentMessages.map(m => ({
+              role: m.senderId === userId ? 'user' : 'model',
+              parts: [{ text: m.text }]
+            }));
+
             const ai = new GoogleGenAI({
               apiKey,
               httpOptions: {
@@ -411,6 +449,32 @@ DIRECTRICES IMPORTANTES:
         fileType: sendFile.type,
         viewOnce: sendFile.viewOnce,
         viewedBy: []
+      };
+      messages.push(newMsg);
+      chatStore.roomMessages.set(roomKey, messages.slice(-50));
+    }
+
+    // Handle virtual girlfriend simulated custom multimedia message
+    const girlfriendMessage = body.girlfriendMessage;
+    if (girlfriendMessage && currentRoom === 'novia-ia') {
+      const messages = chatStore.roomMessages.get(roomKey) || [];
+      const gfConfig = chatStore.girlfriendConfigs?.get(userId) || {
+        name: 'Sofía',
+        personality: 'cariñosa',
+        avatarStyle: 'anime',
+        avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&q=80',
+        mood: '¡Muy feliz de verte! 🥰',
+      };
+      const newMsg: ChatMessage = {
+        id: 'gf_media_' + generateId(),
+        senderId: 'girlfriend',
+        senderName: gfConfig.name,
+        senderColor: '#ec4899',
+        text: girlfriendMessage.text,
+        timestamp: now,
+        fileUrl: girlfriendMessage.fileUrl,
+        fileName: girlfriendMessage.fileName,
+        fileType: girlfriendMessage.fileType
       };
       messages.push(newMsg);
       chatStore.roomMessages.set(roomKey, messages.slice(-50));

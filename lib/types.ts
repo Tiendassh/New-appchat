@@ -94,6 +94,7 @@ export interface PollRequest {
   voteStoryId?: string; // Id of story to upvote/like
   commentStory?: { storyId: string; content: string }; // Comment on a story
   viewOnceMessageId?: string; // Message ID of a view-once file that was opened
+  girlfriendMessage?: { text: string; fileUrl?: string; fileName?: string; fileType?: 'image' | 'video' | 'audio' | 'file' }; // Virtual girlfriend custom media message
   outgoingSignals?: Omit<SignalingQueueItem, 'timestamp'>[];
   action?: 'leave-random' | 'disconnect';
 }

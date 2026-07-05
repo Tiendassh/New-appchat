@@ -143,12 +143,20 @@ export default function AnonymousChatApp() {
     avatarStyle: string;
     avatarUrl: string;
     mood: string;
+    aiEngine?: 'gemini' | 'grok';
   } | null>(null);
   const [isGeneratingAvatar, setIsGeneratingAvatar] = useState<boolean>(false);
   const [gfEditingName, setGfEditingName] = useState<string>('Sofía');
   const [gfEditingPersonality, setGfEditingPersonality] = useState<string>('cariñosa');
   const [gfEditingStyle, setGfEditingStyle] = useState<string>('anime');
+  const [gfEditingEngine, setGfEditingEngine] = useState<'gemini' | 'grok'>('gemini');
   const [showGfConfigModal, setShowGfConfigModal] = useState<boolean>(false);
+
+  // Grok Multimedia Studio States
+  const [grokScenePrompt, setGrokScenePrompt] = useState<string>('');
+  const [grokVideoPrompt, setGrokVideoPrompt] = useState<string>('');
+  const [isGeneratingSceneImg, setIsGeneratingSceneImg] = useState<boolean>(false);
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState<boolean>(false);
 
   // Copy Link helper function
   const handleCopyRoomLink = (roomId: string, roomName?: string) => {
@@ -192,6 +200,7 @@ export default function AnonymousChatApp() {
           setGfEditingName(data.config.name);
           setGfEditingPersonality(data.config.personality);
           setGfEditingStyle(data.config.avatarStyle);
+          setGfEditingEngine(data.config.aiEngine || 'gemini');
         }
       }
     } catch (error) {
@@ -212,6 +221,7 @@ export default function AnonymousChatApp() {
             name: gfEditingName,
             personality: gfEditingPersonality,
             avatarStyle: gfEditingStyle,
+            aiEngine: gfEditingEngine,
           }
         }),
       });
@@ -242,6 +252,7 @@ export default function AnonymousChatApp() {
             name: gfEditingName,
             personality: gfEditingPersonality,
             avatarStyle: gfEditingStyle,
+            aiEngine: gfEditingEngine,
           }
         }),
       });
@@ -272,6 +283,120 @@ export default function AnonymousChatApp() {
       alert(err.message || 'Error al generar la imagen de perfil.');
     } finally {
       setIsGeneratingAvatar(false);
+    }
+  };
+
+  const handleGenerateSceneImage = async () => {
+    if (!userId || !grokScenePrompt.trim()) return;
+    setIsGeneratingSceneImg(true);
+    try {
+      const response = await fetch('/api/girlfriend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          action: 'generate-image',
+          prompt: grokScenePrompt
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.imageUrl) {
+          const textMsg = `¡Aquí tienes la foto que me pediste, mi amor! Me encanta cómo salí en esta escena: "${grokScenePrompt}". Espero que te guste mucho... 🥰📸`;
+          
+          const chatRes = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId,
+              currentRoom: 'novia-ia',
+              girlfriendMessage: {
+                text: textMsg,
+                fileUrl: data.imageUrl,
+                fileName: `${girlfriendConfig?.name || 'Sofía'}_foto.png`,
+                fileType: 'image'
+              }
+            })
+          });
+          
+          if (chatRes.ok) {
+            const chatData = await chatRes.json();
+            if (chatData.messages) setMessages(chatData.messages);
+          }
+
+          setGrokScenePrompt('');
+          setCallRejectedNotification(`¡${girlfriendConfig?.name || 'Sofía'} te ha enviado una foto en el chat! 📸💖`);
+          setTimeout(() => setCallRejectedNotification(null), 4000);
+        } else {
+          throw new Error(data.error || 'Error al generar la foto.');
+        }
+      } else {
+        const data = await response.json();
+        throw new Error(data.error || 'Server error');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Error al generar la foto.');
+    } finally {
+      setIsGeneratingSceneImg(false);
+    }
+  };
+
+  const handleGenerateVideoMessage = async () => {
+    if (!userId || !grokVideoPrompt.trim()) return;
+    setIsGeneratingVideo(true);
+    try {
+      const response = await fetch('/api/girlfriend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          action: 'generate-video',
+          prompt: grokVideoPrompt
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.videoUrl && data.script) {
+          const textMsg = `¡Hola mi vida! Te grabé este videito con mucho cariño para ti. Escúchame: \n\n"${data.script}" 🎬💖`;
+          
+          const chatRes = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId,
+              currentRoom: 'novia-ia',
+              girlfriendMessage: {
+                text: textMsg,
+                fileUrl: data.videoUrl,
+                fileName: `${girlfriendConfig?.name || 'Sofía'}_video.mp4`,
+                fileType: 'video'
+              }
+            })
+          });
+
+          if (chatRes.ok) {
+            const chatData = await chatRes.json();
+            if (chatData.messages) setMessages(chatData.messages);
+          }
+
+          setGrokVideoPrompt('');
+          setCallRejectedNotification(`¡${girlfriendConfig?.name || 'Sofía'} te ha enviado un video-mensaje al chat! 🎬💕`);
+          setTimeout(() => setCallRejectedNotification(null), 4000);
+        } else {
+          throw new Error(data.error || 'Error al generar el video.');
+        }
+      } else {
+        const data = await response.json();
+        throw new Error(data.error || 'Server error');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Error al generar el video.');
+    } finally {
+      setIsGeneratingVideo(false);
     }
   };
 
@@ -4256,6 +4381,82 @@ export default function AnonymousChatApp() {
                             ))}
                           </div>
                         </div>
+
+                        {/* AI Engine Selection */}
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400">Motor de Inteligencia Artificial</label>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {[
+                              { id: 'gemini', label: 'Gemini ✨' },
+                              { id: 'grok', label: 'Grok 🔮' },
+                            ].map((e) => (
+                              <button
+                                key={e.id}
+                                type="button"
+                                onClick={() => setGfEditingEngine(e.id as 'gemini' | 'grok')}
+                                className={`py-1.5 px-2 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                                  gfEditingEngine === e.id
+                                    ? 'bg-rose-500/10 border-rose-500 text-rose-400'
+                                    : 'bg-slate-900/40 border-transparent text-slate-500 hover:text-slate-400'
+                                }`}
+                              >
+                                {e.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Grok Studio Section */}
+                      <div className="pt-4 border-t border-slate-900 space-y-3 shrink-0">
+                        <div className="text-[10px] uppercase font-bold text-rose-400 tracking-wider flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-rose-400" />
+                          <span>Grok Multimedia Studio</span>
+                        </div>
+
+                        {/* Generate Custom Scene Image */}
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-bold text-slate-400">Generar Escena de tu Novia (Foto)</label>
+                          <div className="flex gap-1">
+                            <input
+                              type="text"
+                              value={grokScenePrompt}
+                              onChange={(e) => setGrokScenePrompt(e.target.value)}
+                              placeholder="Ej. Tomando café conmigo"
+                              className="flex-1 bg-slate-900 border border-slate-800 rounded-xl py-1.5 px-2.5 text-[10px] text-slate-200 focus:outline-none focus:border-rose-500"
+                            />
+                            <button
+                              type="button"
+                              disabled={isGeneratingSceneImg}
+                              onClick={handleGenerateSceneImage}
+                              className="py-1.5 px-2.5 bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white font-bold rounded-xl text-[10px] shrink-0 cursor-pointer flex items-center justify-center min-w-[50px]"
+                            >
+                              {isGeneratingSceneImg ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Foto 📸'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Generate Video Message */}
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-bold text-slate-400">Generar Video / Mensaje de ella</label>
+                          <div className="flex gap-1">
+                            <input
+                              type="text"
+                              value={grokVideoPrompt}
+                              onChange={(e) => setGrokVideoPrompt(e.target.value)}
+                              placeholder="Ej. Un saludo de buenos días"
+                              className="flex-1 bg-slate-900 border border-slate-800 rounded-xl py-1.5 px-2.5 text-[10px] text-slate-200 focus:outline-none focus:border-rose-500"
+                            />
+                            <button
+                              type="button"
+                              disabled={isGeneratingVideo}
+                              onClick={handleGenerateVideoMessage}
+                              className="py-1.5 px-2.5 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-bold rounded-xl text-[10px] shrink-0 cursor-pointer flex items-center justify-center min-w-[50px]"
+                            >
+                              {isGeneratingVideo ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Video 🎬'}
+                            </button>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Action buttons */}
@@ -4263,7 +4464,7 @@ export default function AnonymousChatApp() {
                         <button
                           type="button"
                           onClick={handleSaveGirlfriendConfig}
-                          className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold rounded-xl text-[11px] transition-all cursor-pointer shadow-md shadow-indigo-500/5 flex items-center justify-center gap-1.5"
+                          className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold rounded-xl text-[11px] transition-all cursor-pointer shadow-md shadow-indigo-500/5 flex items-center justify-center gap-1.5"
                         >
                           <span>Guardar Cambios 💾</span>
                         </button>
@@ -4271,13 +4472,13 @@ export default function AnonymousChatApp() {
                           type="button"
                           disabled={isGeneratingAvatar}
                           onClick={handleGenerateGfAvatar}
-                          className="w-full py-2.5 px-3 bg-gradient-to-r from-rose-500 to-pink-600 hover:opacity-90 disabled:opacity-50 text-white font-extrabold rounded-xl text-[11px] transition-all cursor-pointer shadow-md shadow-rose-500/5 flex items-center justify-center gap-1.5"
+                          className="w-full py-2 px-3 bg-gradient-to-r from-rose-500 to-pink-600 hover:opacity-90 disabled:opacity-50 text-white font-extrabold rounded-xl text-[11px] transition-all cursor-pointer shadow-md shadow-rose-500/5 flex items-center justify-center gap-1.5"
                         >
                           <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
-                          <span>Generar Foto con IA ✨</span>
+                          <span>Generar Foto de Perfil ✨</span>
                         </button>
                         <p className="text-[9px] text-slate-500 text-center leading-normal">
-                          Usa Gemini para pintar un retrato 1:1 único basado en su estilo y nombre.
+                          Configura la IA a Grok para un chat sumamente inteligente, realista y divertido.
                         </p>
                       </div>
                     </div>
@@ -4639,6 +4840,80 @@ export default function AnonymousChatApp() {
                           {s.label}
                         </button>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Mobile AI Engine selection */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400">Motor de Inteligencia Artificial</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {[
+                        { id: 'gemini', label: 'Gemini ✨' },
+                        { id: 'grok', label: 'Grok 🔮' },
+                      ].map((e) => (
+                        <button
+                          key={e.id}
+                          type="button"
+                          onClick={() => setGfEditingEngine(e.id as 'gemini' | 'grok')}
+                          className={`py-1.5 px-2 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                            gfEditingEngine === e.id
+                              ? 'bg-rose-500/10 border-rose-500 text-rose-400'
+                              : 'bg-slate-950 border-transparent text-slate-500'
+                          }`}
+                        >
+                          {e.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Mobile Grok Multimedia Studio */}
+                  <div className="pt-3 border-t border-slate-800 space-y-2">
+                    <div className="text-[10px] uppercase font-bold text-rose-400 tracking-wider flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-rose-400 animate-pulse" />
+                      <span>Grok Studio</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-slate-400">Generar Escena de tu Novia (Foto)</label>
+                      <div className="flex gap-1">
+                        <input
+                          type="text"
+                          value={grokScenePrompt}
+                          onChange={(e) => setGrokScenePrompt(e.target.value)}
+                          placeholder="Ej. Tomando café conmigo"
+                          className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-1.5 px-2.5 text-[10px] text-slate-200 focus:outline-none focus:border-rose-500"
+                        />
+                        <button
+                          type="button"
+                          disabled={isGeneratingSceneImg}
+                          onClick={handleGenerateSceneImage}
+                          className="py-1.5 px-2.5 bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white font-bold rounded-xl text-[10px] shrink-0 cursor-pointer min-w-[50px] flex items-center justify-center"
+                        >
+                          {isGeneratingSceneImg ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Foto 📸'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-slate-400">Generar Video / Mensaje de ella</label>
+                      <div className="flex gap-1">
+                        <input
+                          type="text"
+                          value={grokVideoPrompt}
+                          onChange={(e) => setGrokVideoPrompt(e.target.value)}
+                          placeholder="Ej. Un saludo de buenos días"
+                          className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-1.5 px-2.5 text-[10px] text-slate-200 focus:outline-none focus:border-rose-500"
+                        />
+                        <button
+                          type="button"
+                          disabled={isGeneratingVideo}
+                          onClick={handleGenerateVideoMessage}
+                          className="py-1.5 px-2.5 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-bold rounded-xl text-[10px] shrink-0 cursor-pointer min-w-[50px] flex items-center justify-center"
+                        >
+                          {isGeneratingVideo ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Video 🎬'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

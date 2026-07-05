@@ -55,6 +55,7 @@ interface GlobalChatStore {
     avatarStyle: string;
     avatarUrl?: string;
     mood?: string;
+    aiEngine?: 'gemini' | 'grok';
   }>;
   debates: DebateTopic[];
   stories: ConfessionStory[];
