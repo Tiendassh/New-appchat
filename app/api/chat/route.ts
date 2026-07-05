@@ -395,6 +395,42 @@ DIRECTRICES IMPORTANTES:
       chatStore.roomMessages.set(roomKey, messages.slice(-50));
     }
 
+    // Handle generic file attachments and view once media
+    const sendFile = body.sendFile;
+    if (sendFile && currentRoom) {
+      const messages = chatStore.roomMessages.get(roomKey) || [];
+      const newMsg: ChatMessage = {
+        id: generateId(),
+        senderId: userId,
+        senderName: user.name,
+        senderColor: user.color,
+        text: sendFile.viewOnce ? `📷 Media de una sola vez: ${sendFile.name}` : `📎 Archivo: ${sendFile.name}`,
+        timestamp: now,
+        fileUrl: sendFile.url,
+        fileName: sendFile.name,
+        fileType: sendFile.type,
+        viewOnce: sendFile.viewOnce,
+        viewedBy: []
+      };
+      messages.push(newMsg);
+      chatStore.roomMessages.set(roomKey, messages.slice(-50));
+    }
+
+    // Handle viewOnce message opened
+    const viewOnceMessageId = body.viewOnceMessageId;
+    if (viewOnceMessageId && currentRoom) {
+      const messages = chatStore.roomMessages.get(roomKey) || [];
+      const msg = messages.find(m => m.id === viewOnceMessageId);
+      if (msg) {
+        if (!msg.viewedBy) {
+          msg.viewedBy = [];
+        }
+        if (!msg.viewedBy.includes(userId)) {
+          msg.viewedBy.push(userId);
+        }
+      }
+    }
+
 
     // Handle debate creation
     const createDebate = body.createDebate;

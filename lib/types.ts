@@ -23,6 +23,11 @@ export interface ChatMessage {
   text: string;
   timestamp: number;
   audioUrl?: string; // Base64 voice note representation
+  fileUrl?: string; // Base64 or local URL of file attachment
+  fileName?: string; // Original filename
+  fileType?: 'image' | 'video' | 'audio' | 'file';
+  viewOnce?: boolean; // Ephemeral view once media
+  viewedBy?: string[]; // Users who have opened this view-once message
 }
 
 export interface SignalingQueueItem {
@@ -82,11 +87,13 @@ export interface PollRequest {
   isPremium?: boolean;
   sendMessage?: string; // Text to send to current room
   sendAudioMessage?: string; // Base64 audio string to send to current room
+  sendFile?: { url: string; name: string; type: 'image' | 'video' | 'audio' | 'file'; viewOnce?: boolean }; // Direct file attachment payload
   createDebate?: { title: string; description: string; category: string }; // Payload to start a new debate
   voteDebateId?: string; // Id of the debate topic to upvote
   createStory?: { title: string; content: string; category: string }; // Payload for new stories/confessions
   voteStoryId?: string; // Id of story to upvote/like
   commentStory?: { storyId: string; content: string }; // Comment on a story
+  viewOnceMessageId?: string; // Message ID of a view-once file that was opened
   outgoingSignals?: Omit<SignalingQueueItem, 'timestamp'>[];
   action?: 'leave-random' | 'disconnect';
 }

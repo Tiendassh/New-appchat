@@ -30,7 +30,14 @@ import {
   ScreenShare,
   Heart,
   CreditCard,
-  Share2
+  Share2,
+  Eye,
+  EyeOff,
+  Paperclip,
+  FileText,
+  Download,
+  PlusCircle,
+  Image as ImageIcon
 } from 'lucide-react';
 import { User, ChatMessage, SignalingQueueItem, RoomInfo, DebateTopic, ConfessionStory } from '@/lib/types';
 import { STATIC_ROOMS } from '@/lib/chatStore';
@@ -335,7 +342,88 @@ export default function AnonymousChatApp() {
   // Text Chat States
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'rooms' | 'debates' | 'users' | 'calls'>('rooms');
+  const [activeTab, setActiveTab] = useState<'rooms' | 'debates' | 'feed' | 'users' | 'calls'>('rooms');
+
+  // File Attachment & View Once States
+  const [viewOnceActiveMedia, setViewOnceActiveMedia] = useState<{ url: string, name: string, type: 'image' | 'video' | 'audio' | 'document' | 'file' } | null>(null);
+  const [viewOnceCountdown, setViewOnceCountdown] = useState<number>(15);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState<boolean>(false);
+  const [viewOnceEnabled, setViewOnceEnabled] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!viewOnceActiveMedia) return;
+    const interval = setInterval(() => {
+      setViewOnceCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setViewOnceActiveMedia(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [viewOnceActiveMedia]);
+
+  const handleOpenViewOnceMessage = (messageId: string) => {
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        currentRoom,
+        viewOnceMessageId: messageId,
+        isSearchingRandom: false
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.messages) setMessages(data.messages);
+    })
+    .catch(err => console.warn('Marking viewOnce opened failed', err));
+  };
+
+  const handleSendFile = (url: string, name: string, type: 'image' | 'video' | 'audio' | 'document', viewOnce?: boolean) => {
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        currentRoom,
+        sendFile: {
+          url,
+          name,
+          type,
+          viewOnce
+        },
+        isSearchingRandom: false
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.messages) setMessages(data.messages);
+      setViewOnceEnabled(false); // Reset after sending
+    })
+    .catch(err => console.warn('File dispatch failed', err));
+  };
+
+  const handleRealFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      // Determine file category
+      let type: 'image' | 'video' | 'audio' | 'document' = 'document';
+      if (file.type.startsWith('image/')) type = 'image';
+      else if (file.type.startsWith('video/')) type = 'video';
+      else if (file.type.startsWith('audio/')) type = 'audio';
+      
+      handleSendFile(base64, file.name, type, viewOnceEnabled);
+    };
+    reader.readAsDataURL(file);
+    setShowAttachmentMenu(false);
+  };
 
   // Audio Recording States
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -478,9 +566,12 @@ export default function AnonymousChatApp() {
   };
 
   // Direct access to specific room or debate from landing/cover page
-  const handleDirectRoomAccess = (roomId: string) => {
+  const handleDirectRoomAccess = (roomId: string, targetTab?: 'rooms' | 'debates' | 'feed' | 'calls' | 'users') => {
     // Set the target room or debate
     setCurrentRoom(roomId);
+    if (targetTab) {
+      setActiveTab(targetTab);
+    }
 
     // Auto-fill random name if empty or default spectator name
     let activeName = name.trim();
@@ -2234,6 +2325,17 @@ export default function AnonymousChatApp() {
                         <br/><span className="text-white font-mono bg-slate-900 px-1 py-0.5 rounded ml-1 mr-1">(Género: {gender === 'unspecified' ? '?' : gender.substring(0,3).toUpperCase()}, Edad: {age})</span><br/>
                         con la persona o pareja más afín, según las preferencias en línea.
                       </p>
+                      
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleDirectRoomAccess('general', 'calls');
+                          setIsSearchingRandom(true);
+                        }}
+                        className="w-full mt-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold py-2 px-4 rounded-xl cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-all text-[11px] tracking-wider uppercase font-mono shadow-md shadow-emerald-500/20"
+                      >
+                        🎯 Iniciar Radar Match 1-a-1
+                      </button>
                     </div>
                   </div>
                 </motion.div>
@@ -2275,6 +2377,16 @@ export default function AnonymousChatApp() {
                       <p className="text-[9px] text-slate-500 leading-relaxed max-w-[240px] mx-auto">
                         Inicia sesión para descubrir y participar en <strong className="text-fuchsia-400">Shows en vivo</strong> de la comunidad. Puedes ser espectador, enviar reacciones, o iniciar tu propio show público.
                       </p>
+                      
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleDirectRoomAccess('general', 'calls');
+                        }}
+                        className="w-full mt-2 bg-gradient-to-r from-fuchsia-500 to-pink-600 hover:from-fuchsia-600 hover:to-pink-700 text-white font-bold py-2 px-4 rounded-xl cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-all text-[11px] tracking-wider uppercase font-mono shadow-md shadow-fuchsia-500/20"
+                      >
+                        ✨ Ver Salas Activas & Webcams
+                      </button>
                     </div>
                   </div>
                 </motion.div>
@@ -2297,16 +2409,27 @@ export default function AnonymousChatApp() {
                           Secretos, desahogos y vivencias 100% anónimas de la comunidad.
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowStoryForm(!showStoryForm);
-                          playInteractionMode('click');
-                        }}
-                        className="px-2.5 py-1 text-[9px] font-bold bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 border border-pink-500/20 rounded-xl cursor-pointer transition-all flex items-center gap-1"
-                      >
-                        {showStoryForm ? 'Ver Relatos 📖' : 'Confesarse ✍️'}
-                      </button>
+                      <div className="flex gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleDirectRoomAccess('general', 'feed');
+                          }}
+                          className="px-2.5 py-1 text-[9px] font-extrabold bg-gradient-to-r from-pink-600 to-rose-600 hover:scale-105 text-white rounded-xl cursor-pointer transition-all flex items-center gap-1 shadow-md shadow-pink-500/20"
+                        >
+                          📖 Entrar al Feed
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowStoryForm(!showStoryForm);
+                            playInteractionMode('click');
+                          }}
+                          className="px-2.5 py-1 text-[9px] font-bold bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 border border-pink-500/20 rounded-xl cursor-pointer transition-all flex items-center gap-1"
+                        >
+                          {showStoryForm ? 'Lista 📋' : 'Escribir ✍️'}
+                        </button>
+                      </div>
                     </div>
 
                     {showStoryForm ? (
@@ -2780,7 +2903,7 @@ export default function AnonymousChatApp() {
             </button>
           </div>
 
-          {/* Tab Selector (Rooms vs Debates vs Active People in Room) */}
+          {/* Tab Selector (Rooms vs Feed vs Debates vs Calls vs Active People) */}
           <div className="flex border-b border-slate-900 px-1 text-[11px]">
             <button
               onClick={() => setActiveTab('rooms')}
@@ -2791,6 +2914,16 @@ export default function AnonymousChatApp() {
               }`}
             >
               Salas
+            </button>
+            <button
+              onClick={() => setActiveTab('feed')}
+              className={`flex-1 py-3 text-center font-bold border-b-2 cursor-pointer transition-colors ${
+                activeTab === 'feed' 
+                  ? 'border-pink-500 text-pink-400' 
+                  : 'border-transparent text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              Feed 🤫
             </button>
             <button
               onClick={() => setActiveTab('debates')}
@@ -2877,6 +3010,209 @@ export default function AnonymousChatApp() {
                     </div>
                   </div>
                 ))}
+              </div>
+            ) : activeTab === 'feed' ? (
+              // Tab Feed: Anonymous Confessions Wall / Public Feed
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowStoryForm(!showStoryForm);
+                    playInteractionMode('click');
+                  }}
+                  className="w-full py-2.5 px-3 bg-gradient-to-r from-pink-600 to-rose-600 hover:scale-[1.01] active:scale-[0.99] text-white font-bold rounded-xl text-[11px] cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-pink-500/5 transition-all"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  {showStoryForm ? 'Cerrar Formulario' : 'Escribir en Muro Anónimo'}
+                </button>
+
+                {showStoryForm && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 space-y-2.5"
+                  >
+                    <div>
+                      <label className="block text-[8px] font-mono font-bold text-slate-400 uppercase mb-1">Título de tu publicación</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: Mi mayor secreto en el trabajo..."
+                        value={newStoryTitle}
+                        onChange={(e) => setNewStoryTitle(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 text-xs placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-pink-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[8px] font-mono font-bold text-slate-400 uppercase mb-1">Categoría</label>
+                      <select
+                        value={newStoryCat}
+                        onChange={(e) => setNewStoryCat(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-300 text-xs focus:outline-none focus:ring-1 focus:ring-pink-500"
+                      >
+                        <option value="Secreto">🤫 Secreto Oscuro</option>
+                        <option value="Amor/Desamor">💔 Amor / Desamor</option>
+                        <option value="Paranormal">👻 Paranormal / Extraño</option>
+                        <option value="Humor">😂 Humor / Anécdota</option>
+                        <option value="Fantasía">✨ Fantasía / Pensamiento</option>
+                        <option value="Otro">💬 Otro relato</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <textarea
+                        placeholder="Publica lo que quieras de forma 100% anónima..."
+                        rows={3}
+                        maxLength={1000}
+                        value={newStoryContent}
+                        onChange={(e) => setNewStoryContent(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 text-xs placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-pink-500 resize-none"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={!newStoryTitle.trim() || !newStoryContent.trim()}
+                      onClick={() => {
+                        handleCreateStory(newStoryTitle, newStoryContent, newStoryCat);
+                        setShowStoryForm(false);
+                      }}
+                      className="w-full bg-pink-600 hover:bg-pink-500 disabled:opacity-40 text-white font-bold py-1.5 px-3 rounded-lg text-xs cursor-pointer transition-all uppercase tracking-wider"
+                    >
+                      Publicar al Feed 🤫
+                    </button>
+                  </motion.div>
+                )}
+
+                <div className="space-y-3">
+                  {stories.length === 0 ? (
+                    <div className="text-center py-10 text-slate-500">No hay confesiones publicadas aún.</div>
+                  ) : (
+                    stories.map((story) => {
+                      const isExpanded = expandedStoryId === story.id;
+                      const hasVoted = story.votedBy?.includes(userId);
+                      let catBg = "bg-slate-900 text-slate-400";
+                      if (story.category === "Amor/Desamor") catBg = "bg-pink-500/10 text-pink-400 border border-pink-500/20";
+                      else if (story.category === "Paranormal") catBg = "bg-purple-500/10 text-purple-400 border border-purple-500/20";
+                      else if (story.category === "Humor") catBg = "bg-amber-500/10 text-amber-400 border border-amber-500/20";
+                      else if (story.category === "Secreto") catBg = "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20";
+                      else if (story.category === "Fantasía") catBg = "bg-fuchsia-500/10 text-fuchsia-400 border border-fuchsia-500/20";
+
+                      return (
+                        <div key={story.id} className="p-3.5 rounded-2xl border border-slate-900 bg-slate-900/20 space-y-2 text-left">
+                          <div className="flex items-center justify-between">
+                            <span className={`text-[8px] font-mono uppercase px-2 py-0.5 rounded-full font-bold ${catBg}`}>
+                              {story.category}
+                            </span>
+                            <span className="text-[9px] text-slate-500">
+                              {new Date(story.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+
+                          <h4 
+                            onClick={() => {
+                              setExpandedStoryId(isExpanded ? null : story.id);
+                              playInteractionMode('select');
+                            }}
+                            className="text-xs font-bold text-slate-200 cursor-pointer hover:text-pink-400 transition-all leading-snug"
+                          >
+                            {story.title}
+                          </h4>
+
+                          <p className={`text-xs text-slate-400 leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
+                            {story.content}
+                          </p>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-900 text-[10px]">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: story.creatorColor }} />
+                              <span className="text-slate-500 font-mono">{story.creatorName}</span>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleVoteStory(story.id);
+                                  playInteractionMode('click');
+                                }}
+                                className={`flex items-center gap-1 font-bold ${hasVoted ? 'text-pink-500' : 'text-slate-500 hover:text-slate-400'}`}
+                              >
+                                <Heart className={`w-3.5 h-3.5 ${hasVoted ? 'fill-pink-500 text-pink-500' : ''}`} />
+                                <span>{story.votes || 0}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExpandedStoryId(isExpanded ? null : story.id);
+                                  playInteractionMode('select');
+                                }}
+                                className="flex items-center gap-1 text-slate-500 hover:text-slate-400"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>{story.comments?.length || 0}</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              className="pt-2.5 mt-2.5 border-t border-slate-900 space-y-2"
+                            >
+                              <div className="text-[9px] font-mono uppercase tracking-wider text-slate-500 font-bold">Comentarios ({story.comments?.length || 0}):</div>
+                              <div className="space-y-1.5 max-h-[150px] overflow-y-auto pr-1">
+                                {(!story.comments || story.comments.length === 0) ? (
+                                  <div className="text-center py-2 text-[10px] text-slate-600 font-mono italic">Sé el primero en comentar.</div>
+                                ) : (
+                                  story.comments.map((comm) => (
+                                    <div key={comm.id} className="bg-slate-950/60 p-2 rounded-xl border border-slate-900 text-left space-y-0.5">
+                                      <div className="flex items-center justify-between text-[9px]">
+                                        <span className="font-bold font-mono" style={{ color: comm.creatorColor }}>{comm.creatorName}</span>
+                                        <span className="text-slate-600 font-mono">{new Date(comm.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                      </div>
+                                      <p className="text-[10px] text-slate-300 leading-normal">{comm.content}</p>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+
+                              <div className="flex gap-1.5 pt-1.5">
+                                <input
+                                  type="text"
+                                  placeholder="Escribe un comentario..."
+                                  value={newCommentContent}
+                                  onChange={(e) => setNewCommentContent(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && newCommentContent.trim()) {
+                                      handleCommentStory(story.id, newCommentContent);
+                                      setNewCommentContent('');
+                                    }
+                                  }}
+                                  className="flex-1 bg-slate-950 border border-slate-850 rounded-xl p-2 text-slate-300 text-xs placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-pink-500"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (newCommentContent.trim()) {
+                                      handleCommentStory(story.id, newCommentContent);
+                                      setNewCommentContent('');
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 bg-pink-600 hover:bg-pink-500 text-white font-bold rounded-xl text-[10px] cursor-pointer transition-all"
+                                >
+                                  Comentar
+                                </button>
+                              </div>
+                            </motion.div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             ) : activeTab === 'debates' ? (
               // Tab B: DEBATE FORUMS LISTING
@@ -3203,188 +3539,67 @@ export default function AnonymousChatApp() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-slate-950 z-40 flex flex-col md:flex-row"
+                className="absolute inset-0 bg-slate-950 z-40 flex flex-col md:flex-row overflow-hidden"
               >
-                {/* Left Side: Cameras Stage container */}
-                <div className="flex-1 flex flex-col relative bg-slate-900/40 p-4">
-                  
-                  {/* Call details overlay */}
-                  <div className="absolute top-6 left-6 z-10 flex items-center gap-3 bg-slate-950/80 border border-slate-800 backdrop-blur px-4 py-2.5 rounded-2xl">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-100">Llamada en Vivo</h4>
-                      <p className="text-[10px] text-slate-400">Conectado con <span className="font-bold" style={{ color: peer.color || '#f43f5e' }}>{peer.name}</span></p>
-                    </div>
-                  </div>
-
-                  {/* Remote video container (takes full background space) */}
-                  <div className="flex-1 w-full rounded-3xl overflow-hidden bg-slate-950 border border-slate-900 relative flex items-center justify-center">
-                    
-                    {peer.id.startsWith('virtual_') ? (
-                      // RENDER BEAUTIFUL CYBERPUNK PREMIUM WEB-CAMERA LOOP
-                      <div className="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center space-y-4 p-6">
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(244,63,94,0.1)_0%,transparent_70%)] animate-pulse" />
-                        
-                        {/* Scanning scanner line effect */}
-                        <div className="absolute inset-x-0 h-0.5 bg-rose-500/40 shadow-[0_0_10px_rgba(244,63,94,0.5)] animate-scanlaser z-10" />
-                        
-                        <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden border-2 border-rose-500/80 shadow-[0_0_30px_rgba(244,63,94,0.35)]">
-                          <img
-                            src={`https://picsum.photos/seed/${peer.id}/400/400`}
-                            alt={peer.name}
-                            className="w-full h-full object-cover grayscale brightness-110 contrast-125"
-                            referrerPolicy="no-referrer"
-                          />
-                          <div className="absolute top-2 right-2 bg-rose-600 text-[8px] font-bold px-1.5 py-0.5 rounded-full text-white uppercase animate-pulse">
-                            LIVE
-                          </div>
-                        </div>
-                        
-                        <div className="text-center space-y-1.5 z-10">
-                          <p className="text-xs sm:text-sm font-extrabold text-rose-400 font-mono tracking-widest flex items-center justify-center gap-1.5 uppercase">
-                            ★ Transmisión Premium VIP ★
-                          </p>
-                          <p className="text-[10px] text-slate-400">Canal verificado · Conexión Privada Establecida</p>
-                          <div className="flex justify-center gap-1.5 mt-2">
-                            <span className="text-[9px] bg-slate-950/80 px-2 py-0.5 rounded-full border border-slate-800 text-rose-300 font-semibold font-mono">
-                              {getGenderLabel(peer.gender)}
-                            </span>
-                            <span className="text-[9px] bg-slate-950/80 px-2 py-0.5 rounded-full border border-slate-800 text-rose-300 font-semibold font-mono">
-                              {peer.age} años
-                            </span>
-                          </div>
-                        </div>
+                {/* Left Side: Conversation Area & Media Controls (Takes full space) */}
+                <div className="flex-1 flex flex-col min-h-0 bg-slate-950">
+                  {/* Header */}
+                  <div className="p-4 border-b border-slate-900 bg-slate-900/10 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <div>
+                        <h4 className="text-xs font-extrabold text-slate-100 uppercase tracking-wider font-mono">
+                          Chat Privado con {peer.name}
+                        </h4>
+                        <p className="text-[10px] text-slate-500">Conexión de canal segura y directa activa</p>
                       </div>
-                    ) : remoteStream ? (
-                      <video
-                        ref={remoteVideoRef}
-                        autoPlay
-                        playsInline
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      // If no video track yet, show a clean loading overlay
-                      <div className="text-center space-y-4">
-                        <div className="w-24 h-24 rounded-full mx-auto bg-indigo-500/10 flex items-center justify-center text-indigo-400 animate-pulse ring-4 ring-indigo-500/20">
-                          <Users className="w-10 h-10" />
-                        </div>
-                        <p className="text-sm font-semibold text-slate-300">Conectando canales de streaming...</p>
-                        <p className="text-xs text-slate-500">Espera que la conexión P2P se complete.</p>
-                      </div>
-                    )}
-
-                    {/* Local PIP Video (small preview pinned at the bottom-right corner) */}
-                    <div className="absolute bottom-6 right-6 w-32 sm:w-44 aspect-video rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl z-20">
-                      {localStream ? (
-                        <video
-                          ref={localVideoRef}
-                          autoPlay
-                          playsInline
-                          muted
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-slate-900 text-[10px] text-slate-500">
-                          Sin Video
-                        </div>
-                      )}
+                    </div>
+                    <div className="text-[9px] font-mono font-bold bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-full">
+                      P2P ACTIVO
                     </div>
                   </div>
 
-                  {/* Call Media Controls Deck (Zoom-like) */}
-                  <div className="h-24 flex items-center justify-center gap-6 mt-2 bg-slate-950/80 rounded-2xl border border-slate-900 mx-4 md:mx-auto md:w-3/4 max-w-lg mb-2">
-                    {/* Camera switch */}
-                    <div className="flex flex-col items-center gap-1.5">
-                      <button
-                        onClick={toggleVideo}
-                        className={`p-4 rounded-full transition-all cursor-pointer border shadow-lg ${
-                          videoEnabled 
-                            ? 'bg-slate-800 border-slate-700 text-slate-100 hover:bg-slate-700' 
-                            : 'bg-rose-600 border-rose-500 text-white hover:bg-rose-500'
-                        }`}
-                        title={videoEnabled ? 'Apagar Cámara' : 'Encender Cámara'}
-                      >
-                        {videoEnabled ? <Video className="w-6 h-6" /> : <VideoOff className="w-6 h-6" />}
-                      </button>
-                      <span className="text-[10px] font-bold text-slate-400">
-                        {videoEnabled ? 'Detener Video' : 'Iniciar Video'}
-                      </span>
-                    </div>
-
-                    {/* Mic mute switch */}
-                    <div className="flex flex-col items-center gap-1.5">
-                      <button
-                        onClick={toggleMute}
-                        className={`p-4 rounded-full transition-all cursor-pointer border shadow-lg ${
-                          audioEnabled 
-                            ? 'bg-slate-800 border-slate-700 text-slate-100 hover:bg-slate-700' 
-                            : 'bg-rose-600 border-rose-500 text-white hover:bg-rose-500'
-                        }`}
-                        title={audioEnabled ? 'Silenciar Micrófono' : 'Activar Micrófono'}
-                      >
-                        {audioEnabled ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
-                      </button>
-                      <span className="text-[10px] font-bold text-slate-400">
-                        {audioEnabled ? 'Silenciar' : 'Reactivar'}
-                      </span>
-                    </div>
-
-                    {/* Screen Share switch */}
-                    <div className="flex flex-col items-center gap-1.5">
-                      <button
-                        onClick={toggleScreenShare}
-                        className={`p-4 rounded-full transition-all cursor-pointer border shadow-lg ${
-                          isScreenSharing 
-                            ? 'bg-emerald-500 border-emerald-400 text-white hover:bg-emerald-400 shadow-emerald-500/20' 
-                            : 'bg-slate-800 border-slate-700 text-emerald-400 hover:bg-slate-700'
-                        }`}
-                        title={isScreenSharing ? 'Detener Compartir Pantalla' : 'Compartir Pantalla'}
-                      >
-                        <ScreenShare className="w-6 h-6" />
-                      </button>
-                      <span className="text-[10px] font-bold text-slate-400">
-                        {isScreenSharing ? 'Dejar de Comp.' : 'Compartir'}
-                      </span>
-                    </div>
-
-                    {/* Hang up call */}
-                    <div className="flex flex-col items-center gap-1.5 ml-4">
-                      <button
-                        onClick={() => handleHangup(true)}
-                        className="bg-rose-600 hover:bg-rose-500 p-4 rounded-full text-white transition-all cursor-pointer shadow-lg shadow-rose-500/20 border border-rose-500"
-                        title="Finalizar Llamada"
-                      >
-                        <PhoneOff className="w-6 h-6" />
-                      </button>
-                      <span className="text-[10px] font-bold text-rose-400">
-                        Salir
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Side Call Chat (Text communication during the active call) */}
-                <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-900 bg-slate-950/80 flex flex-col shrink-0 h-48 md:h-full">
-                  <div className="p-3 border-b border-slate-900 text-xs font-bold text-slate-400">
-                    Mensajes Directos de Llamada
-                  </div>
-                  {/* Since WebRTC call represents transient connection, text overlay acts locally or direct data stream.
-                      Let's offer a temporary private conversation overlay. */}
-                  <div className="flex-1 p-3 overflow-y-auto space-y-2 text-xs">
-                    <div className="text-slate-500 italic text-[10px] text-center p-2 bg-slate-900/20 rounded">
-                      Mensajes efímeros, nunca guardados.
+                  {/* Conversation Messages View (Left Side) */}
+                  <div className="flex-1 p-4 overflow-y-auto space-y-3 scrollbar-none">
+                    <div className="text-slate-600 italic text-[9px] text-center p-2.5 bg-slate-900/40 rounded-xl border border-slate-900/60 max-w-xs mx-auto">
+                      🔒 Conversación privada de un solo uso. Los mensajes no se guardarán en ningún servidor.
                     </div>
                     {callMessages.length === 0 ? (
-                      <div className="text-slate-500 text-center py-10">Envía un mensaje privado al par.</div>
+                      <div className="h-full flex flex-col items-center justify-center text-center space-y-2 py-20">
+                        <span className="text-2xl">💬</span>
+                        <p className="text-xs font-bold text-slate-500">Comienza a escribir...</p>
+                        <p className="text-[9px] text-slate-600">Conéctate usando texto, audio o video simultáneamente.</p>
+                      </div>
                     ) : (
-                      callMessages.map((cm, i) => (
-                        <div key={i} className="space-y-0.5 leading-snug">
-                          <span className="font-extrabold" style={{ color: cm.color }}>{cm.sender}: </span>
-                          <span className="text-slate-300">{cm.text}</span>
-                        </div>
-                      ))
+                      callMessages.map((cm, i) => {
+                        const isMeMsg = cm.sender === name;
+                        return (
+                          <div key={i} className={`flex items-start gap-2.5 max-w-[85%] ${isMeMsg ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}>
+                            <div
+                              className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[9px] font-extrabold select-none text-slate-900 shadow-sm border border-slate-800"
+                              style={{ backgroundColor: isMeMsg ? color : (peer.color || '#f43f5e') }}
+                            >
+                              {(cm.sender || 'P').substring(0, 1).toUpperCase()}
+                            </div>
+                            <div className="space-y-0.5">
+                              <span className="text-[9px] font-bold text-slate-500 block" style={{ color: isMeMsg ? '#94a3b8' : (peer.color || '#f43f5e') }}>
+                                {cm.sender} {isMeMsg && '(Tú)'}
+                              </span>
+                              <div className={`p-3 rounded-2xl text-xs leading-relaxed break-words shadow-sm ${
+                                isMeMsg 
+                                  ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-none' 
+                                  : 'bg-slate-900/80 text-slate-200 border border-slate-800/80 rounded-tl-none'
+                              }`}>
+                                {cm.text}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
+
+                  {/* Input Chat Box Form (Middle-Bottom) */}
                   <form 
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -3395,7 +3610,6 @@ export default function AnonymousChatApp() {
                       setCallMessageInput('');
                       
                       if (peer.id.startsWith('virtual_')) {
-                        // Simulated virtual host replies!
                         const responses = [
                           "¡Me encanta hablar contigo! Cuéntame un poco más de ti 😉",
                           "Qué bueno que coincidimos, este chat Premium es otra cosa. ¿De qué ciudad eres?",
@@ -3414,28 +3628,198 @@ export default function AnonymousChatApp() {
                           playNotificationSound('message');
                         }, 1200 + Math.random() * 1200);
                       } else {
-                        // Deliver message by embedding into outbox signaling queue
                         outgoingSignalsRef.current.push({
                           from: userId,
                           to: peer.id,
-                          type: 'message-call-text', // Custom non-webrtc payload used during peer stream
+                          type: 'message-call-text',
                           payload: msg
                         });
                       }
                     }}
-                    className="p-2 border-t border-slate-900 flex gap-2"
+                    className="p-3 border-t border-slate-900 bg-slate-950/80 flex gap-2"
                   >
                     <input
                       type="text"
-                      placeholder="Escribe en privado..."
+                      placeholder="Escribe un mensaje privado..."
                       value={callMessageInput}
                       onChange={(e) => setCallMessageInput(e.target.value)}
-                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-100"
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-indigo-500 text-slate-100 placeholder-slate-500 transition-all"
                     />
-                    <button type="submit" className="p-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-white cursor-pointer shrink-0">
-                      <Send className="w-3.5 h-3.5" />
+                    <button type="submit" className="p-2.5 bg-indigo-600 hover:bg-indigo-700 hover:scale-105 active:scale-95 rounded-xl text-white cursor-pointer shrink-0 transition-transform flex items-center justify-center aspect-square">
+                      <Send className="w-4 h-4" />
                     </button>
                   </form>
+
+                  {/* BOTTOM ACTION BUTTONS: Media Controls Deck (Skype/Zoom-like controls) */}
+                  <div className="p-4 border-t border-slate-900 bg-slate-950 flex flex-wrap items-center justify-center gap-5 shrink-0">
+                    
+                    {/* 1. Mic mute switch */}
+                    <div className="flex flex-col items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={toggleMute}
+                        className={`p-3.5 rounded-full transition-all cursor-pointer border shadow-lg ${
+                          audioEnabled 
+                            ? 'bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800 hover:text-white' 
+                            : 'bg-rose-600 border-rose-500 text-white hover:bg-rose-500'
+                        }`}
+                        title={audioEnabled ? 'Silenciar Micrófono' : 'Activar Micrófono'}
+                      >
+                        {audioEnabled ? <Mic className="w-5 h-5 text-indigo-400" /> : <MicOff className="w-5 h-5" />}
+                      </button>
+                      <span className="text-[9px] font-mono font-bold text-slate-500">
+                        {audioEnabled ? 'Mic. Activo' : 'Mic. Mudo'}
+                      </span>
+                    </div>
+
+                    {/* 2. Camera switch (Audio and Video Call Button toggle) */}
+                    <div className="flex flex-col items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={toggleVideo}
+                        className={`p-3.5 rounded-full transition-all cursor-pointer border shadow-lg ${
+                          videoEnabled 
+                            ? 'bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800 hover:text-white' 
+                            : 'bg-rose-600 border-rose-500 text-white hover:bg-rose-500'
+                        }`}
+                        title={videoEnabled ? 'Apagar Cámara (Llamada de solo audio)' : 'Iniciar Video (Videollamada)'}
+                      >
+                        {videoEnabled ? <Video className="w-5 h-5 text-indigo-400" /> : <VideoOff className="w-5 h-5" />}
+                      </button>
+                      <span className="text-[9px] font-mono font-bold text-slate-500">
+                        {videoEnabled ? 'Video + Audio' : 'Solo Audio'}
+                      </span>
+                    </div>
+
+                    {/* 3. Screen Share switch */}
+                    <div className="flex flex-col items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={toggleScreenShare}
+                        className={`p-3.5 rounded-full transition-all cursor-pointer border shadow-lg ${
+                          isScreenSharing 
+                            ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/30' 
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                        }`}
+                        title={isScreenSharing ? 'Detener Compartir Pantalla' : 'Compartir Pantalla'}
+                      >
+                        <ScreenShare className="w-5 h-5" />
+                      </button>
+                      <span className="text-[9px] font-mono font-bold text-slate-500">
+                        {isScreenSharing ? 'Compartiendo' : 'Compartir'}
+                      </span>
+                    </div>
+
+                    {/* 4. Hang up / Finalize call */}
+                    <div className="flex flex-col items-center gap-1 ml-4">
+                      <button
+                        type="button"
+                        onClick={() => handleHangup(true)}
+                        className="bg-rose-600 hover:bg-rose-500 p-3.5 rounded-full text-white transition-all cursor-pointer shadow-lg shadow-rose-500/20 border border-rose-500"
+                        title="Finalizar Llamada"
+                      >
+                        <PhoneOff className="w-5 h-5" />
+                      </button>
+                      <span className="text-[9px] font-mono font-bold text-rose-400">
+                        Colgar
+                      </span>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Right Side: Minimal Visual Panel (w-full md:w-80 or md:w-96) */}
+                <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-900 bg-slate-950 flex flex-col shrink-0 overflow-hidden relative">
+                  
+                  {/* Header title */}
+                  <div className="p-3 border-b border-slate-900 text-[10px] font-mono font-extrabold uppercase tracking-widest text-slate-400 flex items-center gap-1.5 shrink-0 bg-slate-900/10">
+                    <Video className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
+                    <span>Señal de Video Directa</span>
+                  </div>
+
+                  {/* Main camera stream window */}
+                  <div className="flex-1 w-full bg-slate-900/20 relative flex items-center justify-center p-3">
+                    
+                    <div className="w-full h-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-900 relative flex items-center justify-center">
+                      {peer.id.startsWith('virtual_') ? (
+                        // RENDER BEAUTIFUL CYBERPUNK PREMIUM WEB-CAMERA LOOP
+                        <div className="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center space-y-4 p-4 text-center">
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(244,63,94,0.08)_0%,transparent_70%)] animate-pulse" />
+                          <div className="absolute inset-x-0 h-0.5 bg-rose-500/30 shadow-[0_0_10px_rgba(244,63,94,0.5)] animate-scanlaser z-10" />
+                          
+                          <div className="relative w-24 h-24 rounded-full overflow-hidden border border-rose-500/60 shadow-[0_0_20px_rgba(244,63,94,0.3)]">
+                            <img
+                              src={`https://picsum.photos/seed/${peer.id}/400/400`}
+                              alt={peer.name}
+                              className="w-full h-full object-cover grayscale brightness-110 contrast-125"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute top-1.5 right-1.5 bg-rose-600 text-[6px] font-bold px-1 py-0.2 rounded-full text-white uppercase animate-pulse font-mono tracking-wider">
+                              LIVE
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-1 z-10">
+                            <p className="text-[10px] font-extrabold text-rose-400 font-mono tracking-widest uppercase">
+                              ★ PREMIUM VIP ★
+                            </p>
+                            <p className="text-[8px] text-slate-500 leading-normal">Cámara remota autorizada</p>
+                            <div className="flex justify-center gap-1 mt-1.5">
+                              <span className="text-[8px] bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 text-rose-300 font-mono">
+                                {getGenderLabel(peer.gender)}
+                              </span>
+                              <span className="text-[8px] bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 text-rose-300 font-mono">
+                                {peer.age}a
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : remoteStream && videoEnabled ? (
+                        <video
+                          ref={remoteVideoRef}
+                          autoPlay
+                          playsInline
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        // If no remote stream, show avatar / offline state
+                        <div className="text-center space-y-3 p-4">
+                          <div className="w-16 h-16 rounded-full mx-auto bg-slate-900/60 flex items-center justify-center border border-slate-800 text-rose-400">
+                            <Users className="w-7 h-7" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Canal cerrado</p>
+                            <p className="text-[8px] text-slate-600 leading-normal mt-0.5 max-w-[150px] mx-auto">La transmisión de cámara está apagada o cargando...</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Small Local Self PIP Video (pinned at bottom-right of stream panel) */}
+                      <div className="absolute bottom-3 right-3 w-20 aspect-video rounded-xl overflow-hidden border border-slate-850 bg-slate-950 shadow-lg z-20">
+                        {localStream && videoEnabled ? (
+                          <video
+                            ref={localVideoRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-slate-950 text-[7px] text-slate-600 uppercase font-mono">
+                            Tu Cam Off
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                  </div>
+
+                  {/* Bottom details of local / remote stream */}
+                  <div className="p-3 bg-slate-950 border-t border-slate-900 text-center space-y-1 shrink-0">
+                    <p className="text-[8px] text-slate-500 font-mono">CANAL DE AUDIO DIRECTO: ACTIVO</p>
+                    <p className="text-[7px] text-slate-600 uppercase">La latencia P2P estimada es menor a 40ms</p>
+                  </div>
+
                 </div>
               </motion.div>
             ) : isSearchingRandom ? (
@@ -3683,6 +4067,77 @@ export default function AnonymousChatApp() {
                                         className="w-full h-8 max-w-xs focus:outline-none rounded bg-slate-950/80 border border-slate-800/60"
                                       />
                                     </div>
+                                  ) : msg.fileUrl ? (
+                                    <div className="space-y-2 min-w-[200px] max-w-xs">
+                                      {msg.viewOnce ? (
+                                        msg.viewedBy?.includes(userId) ? (
+                                          <div className="flex items-center gap-2 p-2.5 bg-slate-950/60 rounded-xl border border-rose-500/10 text-rose-400/60 font-mono text-[9px] uppercase tracking-wider">
+                                            <Lock className="w-3.5 h-3.5 text-rose-500/50" />
+                                            <span>Contenido destruido (Ya visto)</span>
+                                          </div>
+                                        ) : (
+                                          <div className="space-y-2">
+                                            <div className="text-[10px] text-pink-400 font-extrabold flex items-center gap-1.5 font-mono uppercase tracking-wider">
+                                              <Eye className="w-3.5 h-3.5 text-pink-500 animate-pulse" />
+                                              <span>Foto/Video Privado</span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 leading-snug">
+                                              Este archivo se auto-destruirá después de ser abierto.
+                                            </p>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setViewOnceCountdown(15);
+                                                setViewOnceActiveMedia({
+                                                  url: msg.fileUrl!,
+                                                  name: msg.fileName!,
+                                                  type: msg.fileType!
+                                                });
+                                                handleOpenViewOnceMessage(msg.id);
+                                                playInteractionMode('click');
+                                              }}
+                                              className="w-full mt-1 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-extrabold py-2 px-3 rounded-xl cursor-pointer text-[10px] transition-all flex items-center justify-center gap-1.5 font-mono uppercase shadow-lg shadow-pink-500/20 active:scale-95"
+                                            >
+                                              👁️ Abrir y Destruir Media
+                                            </button>
+                                          </div>
+                                        )
+                                      ) : (
+                                        <div className="space-y-2">
+                                          <div className="text-[10px] text-indigo-400 font-extrabold flex items-center gap-1.5 font-mono uppercase tracking-wider">
+                                            <Paperclip className="w-3.5 h-3.5 text-indigo-400" />
+                                            <span>{msg.fileType === 'image' ? 'Imagen adjunta' : msg.fileType === 'video' ? 'Video adjunto' : msg.fileType === 'audio' ? 'Audio adjunto' : 'Archivo adjunto'}</span>
+                                          </div>
+                                          
+                                          {msg.fileType === 'image' && (
+                                            <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950/60 p-1 flex justify-center">
+                                              <img src={msg.fileUrl} alt={msg.fileName} className="max-w-full h-auto max-h-48 object-cover rounded-lg" />
+                                            </div>
+                                          )}
+                                          
+                                          {msg.fileType === 'video' && (
+                                            <video src={msg.fileUrl} controls className="w-full rounded-xl border border-slate-800 bg-slate-950/60 max-h-48" />
+                                          )}
+                                          
+                                          {msg.fileType === 'audio' && (
+                                            <audio src={msg.fileUrl} controls className="w-full h-8 rounded bg-slate-950/80 border border-slate-800/60" />
+                                          )}
+                                          
+                                          {msg.fileType === 'file' && (
+                                            <a
+                                              href={msg.fileUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="flex items-center gap-2.5 p-2.5 bg-slate-950/80 hover:bg-slate-950 rounded-xl border border-slate-800 hover:border-slate-700 text-slate-300 transition-all text-xs"
+                                            >
+                                              <FileText className="w-4.5 h-4.5 text-indigo-400 shrink-0" />
+                                              <span className="truncate flex-1 font-semibold text-[10px]">{msg.fileName}</span>
+                                              <Download className="w-3.5 h-3.5 text-slate-500 hover:text-white shrink-0" />
+                                            </a>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
                                   ) : (
                                     msg.text
                                   )}
@@ -3876,53 +4331,187 @@ export default function AnonymousChatApp() {
                       </div>
                     </div>
                   ) : (
-                    <form
-                      onSubmit={handleSendMessage}
-                      className="flex gap-2"
-                    >
-                      <button
-                        type="button"
-                        onClick={startRecording}
-                        className="p-3 bg-slate-900 border border-slate-800 hover:border-indigo-500/30 hover:bg-indigo-500/5 text-slate-400 hover:text-indigo-400 rounded-2xl transition-all cursor-pointer flex items-center justify-center aspect-square"
-                        title="Grabar mensaje de voz"
-                      >
-                        <Mic className="w-4 h-4 text-indigo-400" />
-                      </button>
+                    <div className="space-y-2 relative w-full">
+                      {/* ATTACHMENT ACTION BAR (Shows when paperclip menu is open) */}
+                      {showAttachmentMenu && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="absolute bottom-16 left-0 right-0 bg-slate-900 border border-slate-850 p-4 rounded-2xl z-50 shadow-2xl space-y-3"
+                        >
+                          <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                            <span className="text-xs font-mono font-extrabold text-slate-300 uppercase tracking-wider">📎 Adjuntar Multimedia</span>
+                            <button 
+                              type="button" 
+                              onClick={() => setShowAttachmentMenu(false)}
+                              className="text-slate-500 hover:text-white text-xs font-bold"
+                            >
+                              Cerrar
+                            </button>
+                          </div>
+                          
+                          {/* File Uploader Input and Presets */}
+                          <div className="grid grid-cols-2 gap-3.5">
+                            {/* Real file uploader trigger */}
+                            <label className="flex flex-col items-center justify-center p-3 rounded-xl border border-dashed border-slate-800 bg-slate-950/60 hover:border-indigo-500 hover:bg-indigo-500/5 transition-all cursor-pointer group text-center">
+                              <PlusCircle className="w-6 h-6 text-indigo-400 group-hover:scale-110 transition-transform mb-1.5" />
+                              <span className="text-[10px] text-slate-300 font-bold block">Subir Archivo Real</span>
+                              <span className="text-[8px] text-slate-500 mt-0.5">Imagen, Video, Audio o PDF</span>
+                              <input 
+                                type="file" 
+                                className="hidden" 
+                                onChange={handleRealFileUpload} 
+                              />
+                            </label>
 
-                      <button
-                        type="button"
-                        onClick={handleChatScreenShare}
-                        className={`p-3 border rounded-2xl transition-all cursor-pointer flex items-center justify-center aspect-square ${
-                          isScreenSharing 
-                            ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25' 
-                            : 'bg-slate-900 border-slate-800 hover:border-indigo-500/30 hover:bg-indigo-500/5 text-slate-400 hover:text-indigo-400'
-                        }`}
-                        title={isScreenSharing ? "Detener de compartir pantalla" : "Compartir pantalla"}
+                            {/* Preset demo assets for instant test */}
+                            <div className="flex flex-col justify-between space-y-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSendFile("https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600", "Foto_Retrato_Incognito.jpg", "image", viewOnceEnabled);
+                                  setShowAttachmentMenu(false);
+                                }}
+                                className="w-full text-left p-1.5 rounded-lg border border-slate-850 bg-slate-950/40 hover:bg-slate-900 text-[10px] font-medium flex items-center gap-1.5 text-slate-300 transition-all cursor-pointer"
+                              >
+                                <ImageIcon className="w-3.5 h-3.5 text-pink-400 shrink-0" />
+                                <span className="truncate">Foto Demo (Incógnito)</span>
+                              </button>
+                              
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSendFile("https://www.w3schools.com/html/mov_bbb.mp4", "Video_Clip_Gracioso.mp4", "video", viewOnceEnabled);
+                                  setShowAttachmentMenu(false);
+                                }}
+                                className="w-full text-left p-1.5 rounded-lg border border-slate-850 bg-slate-950/40 hover:bg-slate-900 text-[10px] font-medium flex items-center gap-1.5 text-slate-300 transition-all cursor-pointer"
+                              >
+                                <Video className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                                <span className="truncate">Video Demo (Clip)</span>
+                              </button>
+                              
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSendFile("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", "Audio_Nota_Grabada.mp3", "audio", viewOnceEnabled);
+                                  setShowAttachmentMenu(false);
+                                }}
+                                className="w-full text-left p-1.5 rounded-lg border border-slate-850 bg-slate-950/40 hover:bg-slate-900 text-[10px] font-medium flex items-center gap-1.5 text-slate-300 transition-all cursor-pointer"
+                              >
+                                <Volume2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                <span className="truncate">Audio de Voz Grabada</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* View Once indicator within panel */}
+                          <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950 border border-slate-850 text-[10px]">
+                            <div className="flex items-center gap-1.5">
+                              <Eye className={`w-4 h-4 ${viewOnceEnabled ? 'text-pink-400 animate-pulse' : 'text-slate-500'}`} />
+                              <div>
+                                <span className="font-bold text-slate-300 block">Modo: Ver una sola vez</span>
+                                <span className="text-[8px] text-slate-500 block">El destinatario solo podrá ver el archivo por 15 segundos</span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setViewOnceEnabled(!viewOnceEnabled);
+                                playInteractionMode('click');
+                              }}
+                              className={`px-3 py-1 rounded-lg text-[9px] font-extrabold uppercase font-mono transition-all cursor-pointer ${
+                                viewOnceEnabled 
+                                  ? 'bg-pink-600 hover:bg-pink-500 text-white shadow-md shadow-pink-500/10' 
+                                  : 'bg-slate-900 text-slate-400 hover:bg-slate-855'
+                              }`}
+                            >
+                              {viewOnceEnabled ? 'ON' : 'OFF'}
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      <form
+                        onSubmit={handleSendMessage}
+                        className="flex gap-2"
                       >
-                        <ScreenShare className="w-4 h-4" />
-                      </button>
-                      
-                      <input
-                        type="text"
-                        maxLength={1000}
-                        value={messageInput}
-                        onChange={(e) => setMessageInput(e.target.value)}
-                        className="flex-1 bg-slate-900/60 border border-slate-800 rounded-2xl py-3 px-4 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-xs"
-                        placeholder={currentRoom === 'novia-ia' ? (girlfriendConfig ? `Escríbele algo lindo a ${girlfriendConfig.name}...` : "Escríbele algo lindo...") : "Escribe un mensaje anónimo..."}
-                      />
-                      
-                      <button
-                        type="submit"
-                        disabled={!messageInput.trim()}
-                        className={`p-3 rounded-2xl text-white font-bold transition-all shrink-0 shadow-lg cursor-pointer flex items-center justify-center aspect-square ${
-                          messageInput.trim() 
-                            ? 'bg-indigo-600 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] shadow-indigo-500/10' 
-                            : 'bg-slate-900 text-slate-600 border border-slate-800/80 cursor-not-allowed'
-                        }`}
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
-                    </form>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAttachmentMenu(!showAttachmentMenu);
+                            playInteractionMode('click');
+                          }}
+                          className={`p-3 border rounded-2xl transition-all cursor-pointer flex items-center justify-center aspect-square ${
+                            showAttachmentMenu 
+                              ? 'bg-indigo-500/10 border-indigo-500/40 text-indigo-400' 
+                              : 'bg-slate-900 border-slate-800 hover:border-indigo-500/30 hover:bg-indigo-500/5 text-slate-400 hover:text-indigo-400'
+                          }`}
+                          title="Adjuntar multimedia"
+                        >
+                          <Paperclip className="w-4 h-4" />
+                        </button>
+
+                        {/* Direct viewOnce Toggle Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setViewOnceEnabled(!viewOnceEnabled);
+                            playInteractionMode('click');
+                          }}
+                          className={`p-3 border rounded-2xl transition-all cursor-pointer flex items-center justify-center aspect-square ${
+                            viewOnceEnabled 
+                              ? 'bg-pink-500/15 border-pink-500/40 text-pink-400 shadow-[0_0_10px_rgba(236,72,153,0.2)]' 
+                              : 'bg-slate-900 border-slate-800 hover:border-pink-500/30 hover:bg-pink-500/5 text-slate-500 hover:text-pink-400'
+                          }`}
+                          title="Alternar Ver una Sola Vez (Modo Efímero)"
+                        >
+                          {viewOnceEnabled ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={startRecording}
+                          className="p-3 bg-slate-900 border border-slate-800 hover:border-indigo-500/30 hover:bg-indigo-500/5 text-slate-400 hover:text-indigo-400 rounded-2xl transition-all cursor-pointer flex items-center justify-center aspect-square"
+                          title="Grabar mensaje de voz"
+                        >
+                          <Mic className="w-4 h-4 text-indigo-400" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleChatScreenShare}
+                          className={`p-3 border rounded-2xl transition-all cursor-pointer flex items-center justify-center aspect-square ${
+                            isScreenSharing 
+                              ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25' 
+                              : 'bg-slate-900 border-slate-800 hover:border-indigo-500/30 hover:bg-indigo-500/5 text-slate-400 hover:text-indigo-400'
+                          }`}
+                          title={isScreenSharing ? "Detener de compartir pantalla" : "Compartir pantalla"}
+                        >
+                          <ScreenShare className="w-4 h-4" />
+                        </button>
+                        
+                        <input
+                          type="text"
+                          maxLength={1000}
+                          value={messageInput}
+                          onChange={(e) => setMessageInput(e.target.value)}
+                          className="flex-1 bg-slate-900/60 border border-slate-800 rounded-2xl py-3 px-4 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-xs"
+                          placeholder={viewOnceEnabled ? "Modo Efímero activo. Escribe un mensaje..." : (currentRoom === 'novia-ia' ? (girlfriendConfig ? `Escríbele algo lindo a ${girlfriendConfig.name}...` : "Escríbele algo lindo...") : "Escribe un mensaje anónimo...")}
+                        />
+                        
+                        <button
+                          type="submit"
+                          disabled={!messageInput.trim()}
+                          className={`p-3 rounded-2xl text-white font-bold transition-all shrink-0 shadow-lg cursor-pointer flex items-center justify-center aspect-square ${
+                            messageInput.trim() 
+                              ? 'bg-indigo-600 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] shadow-indigo-500/10' 
+                              : 'bg-slate-900 text-slate-600 border border-slate-800/80 cursor-not-allowed'
+                          }`}
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </form>
+                    </div>
                   )}
                 </div>
 
@@ -4289,6 +4878,109 @@ export default function AnonymousChatApp() {
                   </button>
                 </div>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 4. VIEW ONCE EPHEMERAL MEDIA DISPLAY OVERLAY */}
+      <AnimatePresence>
+        {viewOnceActiveMedia && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 backdrop-blur-xl select-none"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="w-full max-w-lg bg-slate-950 border border-rose-500/30 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(244,63,94,0.15)] flex flex-col max-h-[90vh]"
+            >
+              {/* Warning Header */}
+              <div className="bg-gradient-to-r from-rose-950/80 to-slate-950 px-5 py-4 border-b border-rose-500/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+                  <span className="text-xs font-mono font-extrabold text-rose-400 uppercase tracking-widest">
+                    Media de un solo uso
+                  </span>
+                </div>
+                
+                {/* Countdown display */}
+                <div className="bg-rose-500/10 border border-rose-500/30 px-3 py-1 rounded-full text-[10px] font-bold text-rose-400 font-mono flex items-center gap-1">
+                  <span>⏱️ Autodestrucción en:</span>
+                  <span className="text-sm font-extrabold text-white">{viewOnceCountdown}s</span>
+                </div>
+              </div>
+
+              {/* Progress Bar of countdown */}
+              <div className="h-1 bg-slate-900 w-full relative">
+                <div 
+                  className="absolute inset-y-0 left-0 bg-gradient-to-r from-rose-500 to-pink-500 transition-all duration-1000"
+                  style={{ width: `${(viewOnceCountdown / 15) * 100}%` }}
+                />
+              </div>
+
+              {/* Media Container */}
+              <div className="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col justify-center items-center relative bg-[radial-gradient(circle_at_center,rgba(244,63,94,0.05)_0%,transparent_80%)]">
+                {viewOnceActiveMedia.type === 'image' && (
+                  <img 
+                    src={viewOnceActiveMedia.url} 
+                    alt={viewOnceActiveMedia.name} 
+                    className="max-w-full max-h-[50vh] object-contain rounded-2xl border border-slate-900 shadow-2xl pointer-events-none"
+                    onContextMenu={(e) => e.preventDefault()}
+                  />
+                )}
+
+                {viewOnceActiveMedia.type === 'video' && (
+                  <video 
+                    src={viewOnceActiveMedia.url} 
+                    autoPlay 
+                    controls 
+                    controlsList="nodownload nofullscreen"
+                    disablePictureInPicture
+                    className="max-w-full max-h-[50vh] rounded-2xl border border-slate-900 shadow-2xl"
+                    onContextMenu={(e) => e.preventDefault()}
+                  />
+                )}
+
+                {viewOnceActiveMedia.type === 'audio' && (
+                  <div className="w-full max-w-sm p-4 bg-slate-900/60 rounded-2xl border border-slate-800 text-center space-y-4">
+                    <Volume2 className="w-12 h-12 text-pink-400 mx-auto animate-pulse" />
+                    <p className="text-xs text-slate-300 font-bold font-mono truncate">{viewOnceActiveMedia.name}</p>
+                    <audio 
+                      src={viewOnceActiveMedia.url} 
+                      autoPlay 
+                      controls 
+                      controlsList="nodownload"
+                      className="w-full h-8"
+                    />
+                  </div>
+                )}
+
+                {(viewOnceActiveMedia.type === 'document' || viewOnceActiveMedia.type === 'file') && (
+                  <div className="w-full max-w-sm p-6 bg-slate-900/60 rounded-2xl border border-slate-800 text-center space-y-4">
+                    <FileText className="w-16 h-16 text-indigo-400 mx-auto animate-bounce" />
+                    <p className="text-xs text-slate-300 font-bold font-mono truncate">{viewOnceActiveMedia.name}</p>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">Este es un documento efímero de una sola lectura. Copiar, guardar o descargar está deshabilitado por seguridad.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Destroy & Close trigger */}
+              <div className="p-4 border-t border-slate-900 bg-slate-950/80 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewOnceActiveMedia(null);
+                    playInteractionMode('click');
+                  }}
+                  className="w-full bg-slate-900 hover:bg-slate-850 hover:text-white border border-slate-800 hover:border-slate-700 text-slate-400 font-bold py-2.5 px-4 rounded-xl cursor-pointer transition-all uppercase text-[10px] tracking-wider font-mono active:scale-95"
+                >
+                  🔒 Destruir y Cerrar Ahora
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
