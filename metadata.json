@@ -1,6 +1,6 @@
 {
   "name": "Chat Anónimo con Voz y Video",
-  "description": "Una plataforma de chat 100% anónima sin historial de mensajes, que incluye chat grupal, emparejamiento 1-a-1 con video, y ahora chat conversacional privado con tu novia perfecta por IA personalizada.",
+  "description": "Una plataforma de chat 100% anónima sin historial de mensajes, que incluye chat grupal, emparejamiento 1-a-1 con video, shows de webcam en vivo, y chat conversacional privado con tu novia perfecta por IA personalizada.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

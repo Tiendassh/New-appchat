@@ -644,7 +644,7 @@ export default function AnonymousChatApp() {
   const [customVideoTitle, setCustomVideoTitle] = useState<string>('');
   const [videoFilter, setVideoFilter] = useState<string>('Todos');
   const [videoSearch, setVideoSearch] = useState<string>('');
-  const [proxyServerUrl, setProxyServerUrl] = useState<string>('https://peivatechat.onrender.com');
+  const [proxyServerUrl, setProxyServerUrl] = useState<string>('https://new-appchat.onrender.com');
   const [playerMode, setPlayerMode] = useState<'integrated' | 'proxy' | 'external'>('proxy');
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
 

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { chatStore } from '@/lib/chatStore';
 import { GoogleGenAI } from '@google/genai';
 
+export const dynamic = 'force-dynamic';
+
 const SECURITY_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',

@@ -3,6 +3,8 @@ import { chatStore, STATIC_ROOMS } from '@/lib/chatStore';
 import { User, ChatMessage, SignalingQueueItem, PollRequest } from '@/lib/types';
 import { GoogleGenAI } from '@google/genai';
 
+export const dynamic = 'force-dynamic';
+
 const SECURITY_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
