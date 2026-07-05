@@ -313,7 +313,8 @@ DIRECTRICES IMPORTANTES:
           }
 
           // 2. Try Venice AI if active
-          if (gfConfig.aiEngine === 'venice' && process.env.VENICE_API_KEY) {
+          const veniceKey = process.env.VENICE_API_KEY || process.env.VITE_VENICE_API_KEY;
+          if (gfConfig.aiEngine === 'venice' && veniceKey) {
             try {
               const veniceMessages = [
                 { role: 'system', content: systemInstruction },
@@ -327,7 +328,7 @@ DIRECTRICES IMPORTANTES:
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${process.env.VENICE_API_KEY}`
+                  'Authorization': `Bearer ${veniceKey}`
                 },
                 body: JSON.stringify({
                   model: 'venice-uncensored',
