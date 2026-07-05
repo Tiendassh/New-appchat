@@ -312,8 +312,12 @@ export default function AnonymousChatApp() {
         const data = await response.json();
         if (data.success && data.avatarUrl) {
           setGirlfriendConfig(prev => prev ? { ...prev, avatarUrl: data.avatarUrl } : null);
-          setCallRejectedNotification(`¡Nueva foto de perfil generada con éxito para ${gfEditingName}! ✨🎨`);
-          setTimeout(() => setCallRejectedNotification(null), 3000);
+          if (data.warning) {
+            setCallRejectedNotification(`⚠️ ${data.warning}`);
+          } else {
+            setCallRejectedNotification(`¡Nueva foto de perfil generada con éxito para ${gfEditingName}! ✨🎨`);
+          }
+          setTimeout(() => setCallRejectedNotification(null), 5000);
         } else {
           throw new Error(data.error || 'No avatar returned');
         }
@@ -323,7 +327,8 @@ export default function AnonymousChatApp() {
       }
     } catch (err: any) {
       console.error('Error generating avatar:', err);
-      alert(err.message || 'Error al generar la imagen de perfil.');
+      setCallRejectedNotification(err.message || 'Error al generar la imagen de perfil.');
+      setTimeout(() => setCallRejectedNotification(null), 4000);
     } finally {
       setIsGeneratingAvatar(false);
     }
@@ -381,8 +386,12 @@ export default function AnonymousChatApp() {
           }
 
           setGrokScenePrompt('');
-          setCallRejectedNotification(`¡${girlfriendConfig?.name || 'Sofía'} te ha enviado una foto en el chat! 📸💖`);
-          setTimeout(() => setCallRejectedNotification(null), 4000);
+          if (data.warning) {
+            setCallRejectedNotification(`⚠️ ${data.warning}`);
+          } else {
+            setCallRejectedNotification(`¡${girlfriendConfig?.name || 'Sofía'} te ha enviado una foto en el chat! 📸💖`);
+          }
+          setTimeout(() => setCallRejectedNotification(null), 5000);
         } else {
           throw new Error(data.error || 'Error al generar la foto.');
         }
@@ -392,7 +401,8 @@ export default function AnonymousChatApp() {
       }
     } catch (err: any) {
       console.error(err);
-      alert(err.message || 'Error al generar la foto.');
+      setCallRejectedNotification(err.message || 'Error al generar la foto.');
+      setTimeout(() => setCallRejectedNotification(null), 4000);
     } finally {
       setIsGeneratingSceneImg(false);
     }
@@ -461,7 +471,8 @@ export default function AnonymousChatApp() {
       }
     } catch (err: any) {
       console.error(err);
-      alert(err.message || 'Error al generar el video.');
+      setCallRejectedNotification(err.message || 'Error al generar el video.');
+      setTimeout(() => setCallRejectedNotification(null), 4000);
     } finally {
       setIsGeneratingVideo(false);
     }
@@ -1107,7 +1118,8 @@ export default function AnonymousChatApp() {
   const startScreenShare = async () => {
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-        alert("La compartición de pantalla no está soportada en este navegador.");
+        setCallRejectedNotification("La compartición de pantalla no está soportada en este navegador.");
+        setTimeout(() => setCallRejectedNotification(null), 4000);
         return;
       }
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });

@@ -183,38 +183,65 @@ export async function POST(req: NextRequest) {
         }, { status: 400, headers: SECURITY_HEADERS });
       }
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-lite-image',
-        contents: {
-          parts: [{ text: promptText }]
-        },
-        config: {
-          imageConfig: {
-            aspectRatio: '1:1',
-            imageSize: '1K'
+      try {
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.1-flash-lite-image',
+          contents: {
+            parts: [{ text: promptText }]
+          },
+          config: {
+            imageConfig: {
+              aspectRatio: '1:1',
+              imageSize: '1K'
+            }
+          }
+        });
+
+        let base64Data = '';
+        if (response.candidates?.[0]?.content?.parts) {
+          for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData && part.inlineData.data) {
+              base64Data = part.inlineData.data;
+              break;
+            }
           }
         }
-      });
 
-      let base64Data = '';
-      if (response.candidates?.[0]?.content?.parts) {
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData && part.inlineData.data) {
-            base64Data = part.inlineData.data;
-            break;
-          }
+        if (!base64Data) {
+          throw new Error('No image was returned from the model.');
         }
+
+        const avatarUrl = `data:image/png;base64,${base64Data}`;
+        current.avatarUrl = avatarUrl;
+        chatStore.girlfriendConfigs.set(userId, current);
+
+        return NextResponse.json({ success: true, avatarUrl, provider: 'gemini' }, { headers: SECURITY_HEADERS });
+      } catch (geminiError: any) {
+        console.error('Gemini avatar generation failed, falling back to styled Unsplash photo:', geminiError);
+        
+        let fallbackUrl = '';
+        if (style === 'anime') {
+          fallbackUrl = 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=400&h=400&fit=crop&q=80';
+        } else if (style === 'realista') {
+          fallbackUrl = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop&q=80';
+        } else if (style === 'cyberpunk') {
+          fallbackUrl = 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&h=400&fit=crop&q=80';
+        } else if (style === 'gótica') {
+          fallbackUrl = 'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=400&h=400&fit=crop&q=80';
+        } else {
+          fallbackUrl = 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop&q=80';
+        }
+
+        current.avatarUrl = fallbackUrl;
+        chatStore.girlfriendConfigs.set(userId, current);
+
+        return NextResponse.json({
+          success: true,
+          avatarUrl: fallbackUrl,
+          provider: 'unsplash-fallback',
+          warning: 'Cuota de imagen agotada. Se seleccionó un avatar premium preestablecido para tu estilo.'
+        }, { headers: SECURITY_HEADERS });
       }
-
-      if (!base64Data) {
-        throw new Error('No image was returned from the model.');
-      }
-
-      const avatarUrl = `data:image/png;base64,${base64Data}`;
-      current.avatarUrl = avatarUrl;
-      chatStore.girlfriendConfigs.set(userId, current);
-
-      return NextResponse.json({ success: true, avatarUrl, provider: 'gemini' }, { headers: SECURITY_HEADERS });
     }
 
     if (action === 'generate-image') {
@@ -257,35 +284,59 @@ export async function POST(req: NextRequest) {
         }, { status: 400, headers: SECURITY_HEADERS });
       }
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-lite-image',
-        contents: {
-          parts: [{ text: promptText }]
-        },
-        config: {
-          imageConfig: {
-            aspectRatio: '1:1',
-            imageSize: '1K'
+      try {
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.1-flash-lite-image',
+          contents: {
+            parts: [{ text: promptText }]
+          },
+          config: {
+            imageConfig: {
+              aspectRatio: '1:1',
+              imageSize: '1K'
+            }
+          }
+        });
+
+        let base64Data = '';
+        if (response.candidates?.[0]?.content?.parts) {
+          for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData && part.inlineData.data) {
+              base64Data = part.inlineData.data;
+              break;
+            }
           }
         }
-      });
 
-      let base64Data = '';
-      if (response.candidates?.[0]?.content?.parts) {
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData && part.inlineData.data) {
-            base64Data = part.inlineData.data;
-            break;
-          }
+        if (!base64Data) {
+          throw new Error('No image was returned from Gemini.');
         }
-      }
 
-      if (!base64Data) {
-        throw new Error('No image was returned from Gemini.');
-      }
+        const imageUrl = `data:image/png;base64,${base64Data}`;
+        return NextResponse.json({ success: true, imageUrl, provider: 'gemini' }, { headers: SECURITY_HEADERS });
+      } catch (geminiError: any) {
+        console.error('Gemini scene generation failed, falling back to styled Unsplash scene:', geminiError);
+        
+        let fallbackUrl = '';
+        if (style === 'anime') {
+          fallbackUrl = 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=80';
+        } else if (style === 'realista') {
+          fallbackUrl = 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800&auto=format&fit=crop&q=80';
+        } else if (style === 'cyberpunk') {
+          fallbackUrl = 'https://images.unsplash.com/photo-1545239351-ef35f43d514b?w=800&auto=format&fit=crop&q=80';
+        } else if (style === 'gótica') {
+          fallbackUrl = 'https://images.unsplash.com/photo-1518005020951-eccb494ad742?w=800&auto=format&fit=crop&q=80';
+        } else {
+          fallbackUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80';
+        }
 
-      const imageUrl = `data:image/png;base64,${base64Data}`;
-      return NextResponse.json({ success: true, imageUrl, provider: 'gemini' }, { headers: SECURITY_HEADERS });
+        return NextResponse.json({
+          success: true,
+          imageUrl: fallbackUrl,
+          provider: 'unsplash-fallback',
+          warning: 'Cuota de imagen agotada. Se seleccionó una foto representativa premium para este momento.'
+        }, { headers: SECURITY_HEADERS });
+      }
     }
 
     if (action === 'generate-video') {
