@@ -250,7 +250,7 @@ export async function POST(req: NextRequest) {
           avatarStyle: 'anime',
           avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&q=80',
           mood: '¡Muy feliz de verte! 🥰',
-          aiEngine: 'gemini' as 'gemini' | 'grok'
+          aiEngine: 'gemini' as 'gemini' | 'grok' | 'venice'
         };
 
         const recentMessages = messages.slice(-15);
@@ -307,12 +307,44 @@ DIRECTRICES IMPORTANTES:
                 const data = await response.json();
                 replyText = data?.choices?.[0]?.message?.content || '';
               }
-            } catch (err) {
+            } catch (err: any) {
               console.warn("Grok OpenRouter chat failed, falling back to Gemini:", err.message || err);
             }
           }
 
-          // 2. Try Gemini standard if Grok failed or is not active
+          // 2. Try Venice AI if active
+          if (gfConfig.aiEngine === 'venice' && process.env.VENICE_API_KEY) {
+            try {
+              const veniceMessages = [
+                { role: 'system', content: systemInstruction },
+                ...recentMessages.map(m => ({
+                  role: m.senderId === userId ? 'user' : 'assistant',
+                  content: m.text
+                }))
+              ];
+
+              const response = await fetch('https://api.venice.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${process.env.VENICE_API_KEY}`
+                },
+                body: JSON.stringify({
+                  model: 'venice-uncensored',
+                  messages: veniceMessages
+                })
+              });
+
+              if (response.ok) {
+                const data = await response.json();
+                replyText = data?.choices?.[0]?.message?.content || '';
+              }
+            } catch (err: any) {
+              console.warn("Venice AI chat failed, falling back to Gemini:", err.message || err);
+            }
+          }
+
+          // 3. Try Gemini standard if Grok/Venice failed or is not active
           if (!replyText && apiKey) {
             const historyParts = recentMessages.map(m => ({
               role: m.senderId === userId ? 'user' : 'model',

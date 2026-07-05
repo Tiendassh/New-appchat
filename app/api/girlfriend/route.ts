@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       avatarStyle: 'anime',
       avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&q=80',
       mood: '¡Muy feliz de verte! 🥰',
-      aiEngine: 'gemini' as 'gemini' | 'grok'
+      aiEngine: 'gemini' as 'gemini' | 'grok' | 'venice'
     };
 
     if (action === 'get-config') {

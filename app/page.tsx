@@ -143,13 +143,13 @@ export default function AnonymousChatApp() {
     avatarStyle: string;
     avatarUrl: string;
     mood: string;
-    aiEngine?: 'gemini' | 'grok';
+    aiEngine?: 'gemini' | 'grok' | 'venice';
   } | null>(null);
   const [isGeneratingAvatar, setIsGeneratingAvatar] = useState<boolean>(false);
   const [gfEditingName, setGfEditingName] = useState<string>('Sofía');
   const [gfEditingPersonality, setGfEditingPersonality] = useState<string>('cariñosa');
   const [gfEditingStyle, setGfEditingStyle] = useState<string>('anime');
-  const [gfEditingEngine, setGfEditingEngine] = useState<'gemini' | 'grok'>('gemini');
+  const [gfEditingEngine, setGfEditingEngine] = useState<'gemini' | 'grok' | 'venice'>('gemini');
   const [showGfConfigModal, setShowGfConfigModal] = useState<boolean>(false);
 
   // Grok Multimedia Studio States
@@ -227,6 +227,36 @@ export default function AnonymousChatApp() {
       }
     }
   }, [mounted, userId, name]);
+
+  // Load gallery items from local storage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = window.localStorage.getItem('grokStudioGallery');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setTimeout(() => {
+              setGalleryItems(parsed);
+            }, 0);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load gallery items', e);
+      }
+    }
+  }, []);
+
+  // Save gallery items to local storage when changed
+  useEffect(() => {
+    if (typeof window !== 'undefined' && galleryItems.length > 0) {
+      try {
+        window.localStorage.setItem('grokStudioGallery', JSON.stringify(galleryItems));
+      } catch (e) {
+        console.warn('Failed to save gallery items', e);
+      }
+    }
+  }, [galleryItems]);
 
   const fetchGirlfriendConfig = useCallback(async (uid: string) => {
     if (!uid) return;
@@ -4160,6 +4190,20 @@ export default function AnonymousChatApp() {
                       }`}
                     >
                       🔮 Grok AI
+                    </button>
+                    <button
+                      onClick={() => {
+                        setGfEditingEngine('venice');
+                        setGirlfriendConfig(prev => prev ? { ...prev, aiEngine: 'venice' } : null);
+                        playInteractionMode('click');
+                      }}
+                      className={`px-3 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                        girlfriendConfig?.aiEngine === 'venice' || gfEditingEngine === 'venice'
+                          ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/10'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      🎭 Venice AI
                     </button>
                     <button
                       onClick={() => {
