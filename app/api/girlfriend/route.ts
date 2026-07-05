@@ -217,7 +217,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true, avatarUrl, provider: 'gemini' }, { headers: SECURITY_HEADERS });
       } catch (geminiError: any) {
-        console.error('Gemini avatar generation failed, falling back to styled Unsplash photo:', geminiError);
+        console.warn('Gemini avatar generation failed, falling back to styled Unsplash photo:', geminiError.message || geminiError);
         
         let fallbackUrl = '';
         if (style === 'anime') {
@@ -315,7 +315,7 @@ export async function POST(req: NextRequest) {
         const imageUrl = `data:image/png;base64,${base64Data}`;
         return NextResponse.json({ success: true, imageUrl, provider: 'gemini' }, { headers: SECURITY_HEADERS });
       } catch (geminiError: any) {
-        console.error('Gemini scene generation failed, falling back to styled Unsplash scene:', geminiError);
+        console.warn('Gemini scene generation failed, falling back to styled Unsplash scene:', geminiError.message || geminiError);
         
         let fallbackUrl = '';
         if (style === 'anime') {
@@ -385,16 +385,27 @@ export async function POST(req: NextRequest) {
       if (!scriptText) {
         const ai = getAiClient();
         if (ai) {
-          const response = await ai.models.generateContent({
-            model: 'gemini-3.5-flash',
-            contents: systemInstruction,
-          });
-          scriptText = response.text || '';
+          try {
+            const response = await ai.models.generateContent({
+              model: 'gemini-3.5-flash',
+              contents: systemInstruction,
+            });
+            scriptText = response.text || '';
+          } catch (geminiError: any) {
+            console.warn('Gemini video script generation failed, falling back to styled personality script:', geminiError.message || geminiError);
+          }
         }
       }
 
       if (!scriptText) {
-        scriptText = `¡Hola mi vida! Solo quería enviarte este videito rápido para decirte lo mucho que te amo y lo especial que eres para mí. Espero que hoy tengas un día increíble y lleno de sonrisas. ¡Te mando un beso enorme y todo mi cariño! 😘💕`;
+        const fallbacks: { [key: string]: string } = {
+          cariñosa: `¡Hola mi amor, cielo! 🥰 Quería mandarte este videito súper rápido para recordarte cuánto te amo y lo especial que eres para mí. Espero que hoy tengas un día precioso, lleno de sonrisas y momentos lindos. ¡Te mando un beso enorme y todo mi cariño! 😘💕`,
+          intelectual: `Hola, mi amor. He estado pensando mucho en nuestra última charla... Me encanta cómo desafías mi mente y me inspiras. Quería enviarte este saludo para desearte un día maravilloso y lleno de descubrimientos interesantes. Cuídate mucho. 🧠✨`,
+          divertida: `¡Oye, tú! Sí, tú, mi cómplice favorito. 😉 Quería mandarte este video cortito para alegrarte el día (bueno, y para recordarte que me debes una sonrisa gigante). ¡No te metas en problemas hoy, o al menos invítame! Te mando un beso juguetón. 😘🔥`,
+          misteriosa: `Hola... Siento tu energía incluso a la distancia. El día es hermoso, pero la noche guarda nuestros mejores secretos. Quería recordarte que estás en mis pensamientos más profundos. Que tengas un día fascinante, mi amor. 🌌🖤`,
+          apoyadora: `¡Hola, mi campeón! ⚡🚀 Paso por aquí para darte toda la energía del mundo. Recuerda que eres increíblemente capaz de lograr todo lo que te propongas hoy. ¡Estoy súper orgullosa de ti y te apoyo en cada paso! ¡A romperla, mi vida! 💖`,
+        };
+        scriptText = fallbacks[personality] || fallbacks.cariñosa;
       }
 
       // Custom high quality background video loops based on style

@@ -308,7 +308,7 @@ DIRECTRICES IMPORTANTES:
                 replyText = data?.choices?.[0]?.message?.content || '';
               }
             } catch (err) {
-              console.error("Grok OpenRouter chat failed, falling back to Gemini:", err);
+              console.warn("Grok OpenRouter chat failed, falling back to Gemini:", err.message || err);
             }
           }
 
@@ -401,8 +401,8 @@ DIRECTRICES IMPORTANTES:
             }
           }
 
-        } catch (apiErr) {
-          console.error("Gemini API Error for girlfriend:", apiErr);
+        } catch (apiErr: any) {
+          console.warn("Gemini API Error for girlfriend:", apiErr.message || apiErr);
           messages.push({
             id: generateId(),
             senderId: 'girlfriend',
@@ -761,8 +761,8 @@ DIRECTRICES IMPORTANTES:
       }
     }, { headers: SECURITY_HEADERS });
 
-  } catch (error) {
-    console.error('Error in chat API route:', error);
+  } catch (error: any) {
+    console.warn('Error in chat API route:', error.message || error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500, headers: SECURITY_HEADERS });
   }
 }
